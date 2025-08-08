@@ -1,0 +1,1086 @@
+{
+	"info": {
+		"_postman_id": "corporate-mvp-api-collection",
+		"name": "Corporate MVP API",
+		"description": "Complete API collection for Corporate MVP backend service with team analytics, dashboard, and project management features",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "corporate-mvp"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "My Team",
+			"item": [
+				{
+					"name": "Get Team Members",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/team/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"team",
+								""
+							]
+						},
+						"description": "Get all team members with their profiles, risk assessments, and project allocations"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/team/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"team",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "[\n    {\n        \"id\": 1,\n        \"username\": \"john.smith1\",\n        \"first_name\": \"John\",\n        \"last_name\": \"Smith\",\n        \"profile_pic\": \"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150\",\n        \"mental_health\": \"Medium\",\n        \"motivation_factor\": \"High\",\n        \"career_opportunities\": \"Medium\",\n        \"personal_reason\": \"Low\",\n        \"suggested_risk\": \"Medium\",\n        \"project_criticality\": \"High\",\n        \"manager_assessment_risk\": \"Medium\",\n        \"all_triggers\": \"MH,CO,PR\",\n        \"primary_trigger\": \"MH\",\n        \"age\": 32,\n        \"total_allocation\": 85.5\n    }\n]"
+						}
+					]
+				},
+				{
+					"name": "Update Employee Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 1,\n    \"mental_health\": \"High\",\n    \"motivation_factor\": \"Medium\",\n    \"career_opportunities\": \"Low\",\n    \"personal_reason\": \"Medium\",\n    \"manager_assessment_risk\": \"High\",\n    \"all_triggers\": \"MH,MT,PR\",\n    \"primary_trigger\": \"MH\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/team/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"team",
+								""
+							]
+						},
+						"description": "Update employee profile risk assessments and triggers"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Attrition Graph Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/team/attrition-graph/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"team",
+								"attrition-graph",
+								""
+							]
+						},
+						"description": "Get bar graph data for team attrition risk based on manager assessment"
+					},
+					"response": [
+						{
+							"name": "Attrition Graph Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/team/attrition-graph/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"team",
+										"attrition-graph",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n    \"title\": \"Team Attrition Risk Distribution\",\n    \"type\": \"bar\",\n    \"data\": {\n        \"labels\": [\"High\", \"Medium\", \"Low\"],\n        \"data\": [3, 8, 4],\n        \"backgroundColor\": [\"#ff6b6b\", \"#ffd93d\", \"#6bcf7f\"]\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Distribution Graph Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/team/distribution-graph/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"team",
+								"distribution-graph",
+								""
+							]
+						},
+						"description": "Get donut chart data for trigger distribution analysis"
+					},
+					"response": [
+						{
+							"name": "Distribution Graph Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/team/distribution-graph/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"team",
+										"distribution-graph",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n    \"title\": \"Trigger Distribution Analysis\",\n    \"type\": \"doughnut\",\n    \"inner\": {\n        \"title\": \"All Issues\",\n        \"data\": {\n            \"labels\": [\"Mental Health\", \"Motivation Factor\", \"Career Opportunities\", \"Personal Reason\"],\n            \"data\": [12, 8, 15, 6],\n            \"backgroundColor\": [\"#ff6b6b\", \"#4ecdc4\", \"#45b7d1\", \"#f9ca24\"]\n        }\n    },\n    \"outer\": {\n        \"title\": \"Primary Issues\",\n        \"data\": {\n            \"labels\": [\"Mental Health\", \"Career Opportunities\", \"Personal Reason\"],\n            \"data\": [5, 7, 3],\n            \"backgroundColor\": [\"#ff9ff3\", \"#54a0ff\", \"#5f27cd\"]\n        }\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Team Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/team/analytics/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"team",
+								"analytics",
+								""
+							]
+						},
+						"description": "Get comprehensive team analytics and metrics"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Quick Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/quick-data/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"quick-data",
+								""
+							]
+						},
+						"description": "Get all dashboard quick data widgets in one call"
+					},
+					"response": [
+						{
+							"name": "Dashboard Quick Data Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/dashboard/quick-data/",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"dashboard",
+										"quick-data",
+										""
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n    \"team_attrition_risk\": 20.0,\n    \"team_mental_health\": 73.3,\n    \"avg_utilization\": 82.5,\n    \"top_talent\": [\n        {\n            \"id\": 1,\n            \"username\": \"john.smith1\",\n            \"first_name\": \"John\",\n            \"last_name\": \"Smith\",\n            \"criticality_score\": 3,\n            \"criticality_label\": \"High\",\n            \"profile_pic\": \"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150\"\n        }\n    ],\n    \"average_age\": 34.2,\n    \"total_team_members\": 15\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Team Attrition Risk",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/attrition-risk/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"attrition-risk",
+								""
+							]
+						},
+						"description": "Get detailed team attrition risk analysis"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Team Mental Health",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/mental-health/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"mental-health",
+								""
+							]
+						},
+						"description": "Get detailed team mental health breakdown"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Team Utilization",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/utilization/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"utilization",
+								""
+							]
+						},
+						"description": "Get detailed team utilization analysis"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Project Allocations",
+			"item": [
+				{
+					"name": "Get Project Allocations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/allocations/?active_only=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"allocations",
+								""
+							],
+							"query": [
+								{
+									"key": "project_id",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "employee_id",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "active_only",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Get project allocations with optional filters"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Project Allocation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employee\": 1,\n    \"project\": 1,\n    \"allocation_percentage\": 50.0,\n    \"start_date\": \"2024-01-01\",\n    \"end_date\": \"2024-12-31\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/allocations/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"allocations",
+								""
+							]
+						},
+						"description": "Create new project allocation (validates total allocation doesn't exceed 100%)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Project Allocation",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"allocation_percentage\": 60.0,\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/allocations/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"allocations",
+								"1",
+								""
+							]
+						},
+						"description": "Update existing project allocation"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Project Allocation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/allocations/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"allocations",
+								"1",
+								""
+							]
+						},
+						"description": "Delete project allocation"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project Team",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/project/1/team/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"project",
+								"1",
+								"team",
+								""
+							]
+						},
+						"description": "Get all team members for a specific project"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Employee Allocations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/employee/1/allocations/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"employee",
+								"1",
+								"allocations",
+								""
+							]
+						},
+						"description": "Get allocation summary for a specific employee"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Projects",
+			"item": [
+				{
+					"name": "Get Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/project/?user_id=admin",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"project",
+								""
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "admin"
+								},
+								{
+									"key": "project_id",
+									"value": "1",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get projects for a user or specific project"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Projects",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n    {\n        \"title\": \"New Project\",\n        \"description\": \"Project description\",\n        \"start_date\": \"2024-01-01\",\n        \"go_live_date\": \"2024-06-01\",\n        \"status\": \"Active\",\n        \"criticality\": \"High\",\n        \"source\": \"https://project-management.company.com/projects/new-project\"\n    }\n]"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/project/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"project",
+								""
+							]
+						},
+						"description": "Create new projects"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Project",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Inactive\",\n    \"criticality\": \"Medium\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/project/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"project",
+								"1",
+								""
+							]
+						},
+						"description": "Update project (supports active/inactive toggle and criticality)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Action Items",
+			"description": "Role-based Action Items API - Viewing: All users, Creating/Assigning: Managers only",
+			"item": [
+				{
+					"name": "Get Action Items (All Users)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/action-items/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"action-items",
+								""
+							]
+						},
+						"description": "Get action items including survey-based items. Available to all authenticated users."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Action Item (Manager Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Complete Training Module\",\n    \"description\": \"Complete the leadership training module by end of week\",\n    \"assigned_to\": \"john_doe\",\n    \"due_date\": \"2024-08-15\",\n    \"priority\": \"high\",\n    \"status\": \"pending\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/action-items/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"action-items",
+								""
+							]
+						},
+						"description": "Create new action item. Requires manager role. Returns 403 for associates."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Action Item Status (Own Items)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"completed\",\n    \"completion_notes\": \"Training completed successfully\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/action-items/{{action_item_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"action-items",
+								"{{action_item_id}}",
+								""
+							]
+						},
+						"description": "Update own action item status. Users can update their assigned items."
+					},
+					"response": []
+				},
+				{
+					"name": "Reassign Action Item (Manager Only)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assigned_to\": \"jane_smith\",\n    \"due_date\": \"2024-08-20\",\n    \"priority\": \"medium\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/action-items/{{action_item_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"action-items",
+								"{{action_item_id}}",
+								""
+							]
+						},
+						"description": "Reassign action item to different user. Requires manager role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Action Item (Manager Only)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/action-items/{{action_item_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"action-items",
+								"{{action_item_id}}",
+								""
+							]
+						},
+						"description": "Delete action item. Requires manager role. Returns 403 for associates."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Courses",
+			"description": "Role-based Courses API - Viewing: All users, Creating/Updating/Deleting: Managers only",
+			"item": [
+				{
+					"name": "Get Courses (All Users)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"courses",
+								""
+							]
+						},
+						"description": "Get available courses. Available to all authenticated users for learning and development."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Course Categories (All Users)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/category/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"courses",
+								"category",
+								""
+							]
+						},
+						"description": "Get course categories for filtering and organization."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Course (Manager Only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Advanced Leadership Skills\",\n    \"description\": \"Comprehensive course on leadership development and team management\",\n    \"category\": \"Leadership\",\n    \"duration\": \"40 hours\",\n    \"difficulty_level\": \"intermediate\",\n    \"prerequisites\": \"Basic management experience\",\n    \"learning_objectives\": [\"Develop leadership skills\", \"Learn team management\", \"Improve communication\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"courses",
+								""
+							]
+						},
+						"description": "Create new course. Requires manager role. Returns 403 for associates."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Course (Manager Only)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Advanced Leadership Skills - Updated\",\n    \"description\": \"Updated comprehensive course on leadership development\",\n    \"duration\": \"45 hours\",\n    \"difficulty_level\": \"advanced\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/{{course_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"courses",
+								"{{course_id}}",
+								""
+							]
+						},
+						"description": "Update existing course. Requires manager role. Returns 403 for associates."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Course (Manager Only)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{manager_access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/{{course_id}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"courses",
+								"{{course_id}}",
+								""
+							]
+						},
+						"description": "Delete course. Requires manager role. Returns 403 for associates."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Chat/LLM",
+			"item": [
+				{
+					"name": "Chat with LLM",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"What are the current team risks?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"chat",
+								""
+							]
+						},
+						"description": "Chat with LLM for insights and analysis"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
