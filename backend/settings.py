@@ -101,7 +101,7 @@ DATABASES = {
         'NAME': 'corporate_mvp',
         'PASSWORD': 'RandomPassword1999',
         'USER': 'leapllp112',
-        'HOST': 'ec2-13-201-68-87.ap-south-1.compute.amazonaws.com',
+        'HOST': '34.93.168.19',
         'PORT': '5432',
         'OPTIONS': {
             'options': '-c search_path=transaction'
