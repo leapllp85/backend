@@ -255,3 +255,7 @@ class SurveyAnswer(models.Model):
         elif self.answer_boolean is not None:
             return self.answer_boolean
         return None
+
+
+# Import KnowledgeBase from rag module for better organization
+from .models.rag import KnowledgeBase

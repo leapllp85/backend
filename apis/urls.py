@@ -4,7 +4,7 @@ from .views.courses import CourseAPIView
 from .views.actionitems import ActionItemAPIView
 from .views.llm import ChatAPIView
 
-from .views.team import MyTeamAPIView, TeamAnalyticsAPIView
+from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView
 from .views.dashboard import DashboardQuickDataAPIView, TeamAttritionRiskAPIView, TeamMentalHealthAPIView, TeamUtilizationAPIView
 from .views.allocations import ProjectAllocationAPIView, ProjectTeamAPIView, EmployeeAllocationSummaryAPIView
 from .views.surveys import SurveyListAPIView, SurveyDetailAPIView, SurveyResponseAPIView, SurveyManagementAPIView, MySurveyResponsesAPIView, ManagerSurveyPublishAPIView
@@ -23,6 +23,8 @@ urlpatterns = [
     # Team Management - Access controlled by permissions
     path('my-team/', MyTeamAPIView.as_view(), name='my-team'),
     path('team-analytics/', TeamAnalyticsAPIView.as_view(), name='team-analytics'),
+    path('team-analytics/attrition-graph/', AttritionGraphAPIView.as_view(), name='team-attrition-graph'),
+    path('team-analytics/distribution-graph/', DistributionGraphAPIView.as_view(), name='team-distribution-graph'),
     
     # Dashboard - Access controlled by permissions
     path('dashboard/quick-data/', DashboardQuickDataAPIView.as_view(), name='dashboard-quick-data'),

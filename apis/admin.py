@@ -3,7 +3,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     ActionItem, Project, Course, CourseCategory, EmployeeProfile, 
-    ProjectAllocation, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
+    ProjectAllocation, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer,
+    KnowledgeBase
 )
 
 
@@ -241,9 +242,47 @@ class SurveyAnswerAdmin(admin.ModelAdmin):
     get_answer_value.short_description = 'Answer'
 
 
+# Knowledge Base Admin (RAG System)
+class KnowledgeBaseAdmin(admin.ModelAdmin):
+    list_display = ('content_type', 'content_id', 'title', 'get_content_preview', 'created_at')
+    list_filter = ('content_type', 'created_at', 'updated_at')
+    search_fields = ('title', 'content', 'content_id')
+    readonly_fields = ('embedding', 'created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+    
+    fieldsets = (
+        ('Content Information', {
+            'fields': ('content_type', 'content_id', 'title', 'content')
+        }),
+        ('Metadata', {
+            'fields': ('metadata',)
+        }),
+        ('System Fields', {
+            'fields': ('embedding', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_content_preview(self, obj):
+        if obj.content:
+            return obj.content[:100] + '...' if len(obj.content) > 100 else obj.content
+        return 'No content'
+    get_content_preview.short_description = 'Content Preview'
+
+
+# Register all models
+# admin.site.register(CourseCategory, CourseCategoryAdmin)
+# admin.site.register(Course, CourseAdmin)
+# admin.site.register(Survey, SurveyAdmin)
+# admin.site.register(SurveyQuestion, SurveyQuestionAdmin)
+# admin.site.register(SurveyResponse, SurveyResponseAdmin)
+# admin.site.register(SurveyAnswer, SurveyAnswerAdmin)
+# admin.site.register(KnowledgeBase, KnowledgeBaseAdmin)
+
 # Unregister the default User admin and register our custom one
-admin.site.unregister(User)
-admin.site.register(User, UserAdmin)
+# admin.site.unregister(User)
+# admin.site.register(User, UserAdmin)
 
 # Customize admin site headers
 admin.site.site_header = 'Corporate MVP Administration'

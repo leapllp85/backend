@@ -1,37 +1,24 @@
-from django.db.models import Q, CharField, TextField, ForeignKey, ManyToManyField, Model
-from django.core.exceptions import FieldDoesNotExist
-from django.contrib.auth.models import User
 from django.http import HttpResponse
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from ..models import (
-    ActionItem, Project, Course, CourseCategory, EmployeeProfile, 
-    ProjectAllocation, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
-)
-from ..permissions import IsManagerOrAssociate
-from ..utils import get_table_schema
+from apis.permissions import IsManagerOrAssociate
+from apis.models import EmployeeProfile
+from apis.services.rag_service import RAGService
+from anthropic import Anthropic
+from django.conf import settings
 import json
-import requests
-from datetime import datetime
+import logging
 
-# All available models except User (as per requirement)
-MODEL_MAPPING = {
-    "actionitem": ActionItem,
-    "project": Project,
-    "course": Course,
-    "coursecategory": CourseCategory,
-    "employeeprofile": EmployeeProfile,
-    "projectallocation": ProjectAllocation,
-    "survey": Survey,
-    "surveyquestion": SurveyQuestion,
-    "surveyresponse": SurveyResponse,
-    "surveyanswer": SurveyAnswer,
-}
+logger = logging.getLogger(__name__)
 
 class ChatAPIView(APIView):
-    """Enhanced LLM-powered chat API with comprehensive database querying and role-based access control"""
+    """RAG-powered chat API with Anthropic Claude Sonnet 4 for versatile HTML generation"""
     permission_classes = [IsAuthenticated, IsManagerOrAssociate]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.rag_service = RAGService()
+        self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     def post(self, request, *args, **kwargs):
         user_prompt = request.data.get("prompt", "").strip()
@@ -50,337 +37,144 @@ class ChatAPIView(APIView):
                 content_type='text/html'
             )
 
-        # Compose enhanced LLM prompt with all available models
-        schema_prompt = (
-            "You are an intelligent corporate data assistant. You help employees query company data.\n"
-            "Given a user query and database schemas, respond with a JSON object specifying which model to query and search filters.\n"
-            "Available models and their purposes:\n"
-            "- actionitem: Tasks and action items assigned to employees\n"
-            "- project: Company projects and their details\n"
-            "- course: Training courses and learning materials\n"
-            "- coursecategory: Categories for organizing courses\n"
-            "- employeeprofile: Employee information and profiles\n"
-            "- projectallocation: Employee assignments to projects\n"
-            "- survey: Employee surveys and feedback forms\n"
-            "- surveyquestion: Individual questions within surveys\n"
-            "- surveyresponse: Employee responses to surveys\n"
-            "- surveyanswer: Specific answers to survey questions\n\n"
-        )
-
-        for name, model in MODEL_MAPPING.items():
-            schema = get_table_schema(model, preferred_table_name=name)
-            schema_prompt += f"\n{name.upper()} Schema:\n{schema}\n"
-
-        schema_prompt += (
-            f'\nUser Query: "{user_prompt}"\n\n'
-            "Instructions:\n"
-            "1. Analyze the user query and determine the most relevant model\n"
-            "2. Extract key search terms that would help filter the data\n"
-            "3. Respond ONLY with a JSON object in this exact format:\n"
-            '{"model": "modelname", "filters": ["keyword1", "keyword2"], "intent": "brief description of what user wants"}\n'
-            "4. If no suitable model matches, use null for the model\n"
-            "5. Include 2-5 relevant keywords for filtering\n"
-            "6. No additional text outside the JSON object\n"
-        )
-
-        # Make LLM call
         try:
-            llm_result = self.call_llm(schema_prompt)
-            if not llm_result:
+            # Step 1: Search knowledge base for relevant context
+            logger.info(f"Searching knowledge base for query: {user_prompt}")
+            context_data = self.rag_service.search_knowledge_base(
+                query=user_prompt,
+                limit=15,
+                threshold=0.6
+            )
+            
+            # Step 2: Apply role-based filtering to context
+            filtered_context = self.rag_service.get_role_filtered_context(
+                user, user_profile, context_data
+            )
+            
+            if not filtered_context:
                 return HttpResponse(
-                    self.generate_error_html("Failed to process your query. Please try again."),
+                    self.generate_error_html(
+                        "No relevant information found for your query. Try rephrasing or asking about projects, employees, courses, or surveys."
+                    ),
                     content_type='text/html'
                 )
+            
+            # Step 3: Generate versatile HTML response using Claude Sonnet 4
+            html_response = self.generate_claude_html_response(
+                user_prompt, filtered_context, user_profile
+            )
+            
+            return HttpResponse(html_response, content_type='text/html')
+            
         except Exception as e:
+            logger.error(f"Error in ChatAPIView: {e}")
             return HttpResponse(
-                self.generate_error_html(f"LLM processing error: {str(e)}"),
+                self.generate_error_html(f"An error occurred while processing your request: {str(e)}"),
                 content_type='text/html'
             )
 
-        model_name = llm_result.get('model', '').lower().strip()
-        keywords = llm_result.get('filters', [])
-        intent = llm_result.get('intent', 'Data query')
+    def generate_claude_html_response(self, user_query: str, context_data: list, user_profile) -> str:
+        """Generate versatile HTML response using Claude Sonnet 4 with RAG context"""
+        
+        # Prepare context summary for Claude
+        context_summary = self.prepare_context_for_claude(context_data)
+        
+        # Create comprehensive prompt for Claude Sonnet 4
+        claude_prompt = f"""
+You are an expert corporate data analyst and web developer. Generate a comprehensive, visually appealing HTML response for the following user query using the provided corporate data context.
 
-        if not model_name or model_name == 'null':
-            return HttpResponse(
-                self.generate_error_html("I couldn't understand your query. Please try rephrasing it."),
-                content_type='text/html'
-            )
+User Query: "{user_query}"
 
-        model = MODEL_MAPPING.get(model_name)
-        if not model:
-            return HttpResponse(
-                self.generate_error_html(f"Model '{model_name}' is not available for querying."),
-                content_type='text/html'
-            )
+User Role: {'Manager' if user_profile.is_manager else 'Associate'}
 
-        # Apply role-based access control
+Relevant Corporate Data Context:
+{context_summary}
+
+Instructions:
+1. Create a complete HTML response that directly answers the user's query
+2. Be versatile - use the most appropriate format:
+   - Tables for structured data comparisons
+   - Charts/graphs for trends and analytics (use Chart.js or similar)
+   - Cards for individual items or summaries
+   - Lists for action items or recommendations
+   - Plain text for explanations or insights
+
+3. Include modern CSS styling with:
+   - Professional corporate color scheme (blues, grays, whites)
+   - Responsive design
+   - Clean typography
+   - Proper spacing and layout
+
+4. If creating charts, use Chart.js CDN and include interactive features
+5. Make the response actionable - include insights, recommendations, or next steps
+6. Ensure the HTML is complete and self-contained
+7. Use semantic HTML elements
+8. Include relevant icons or visual elements where appropriate
+
+Generate ONLY the HTML content (no explanations or markdown). The HTML should be ready to display directly in a browser.
+"""
+        
+        # Call Claude Sonnet 4 for HTML generation using official client
         try:
-            queryset = self.apply_role_based_filtering(model, user, user_profile, keywords)
-        except PermissionError as e:
-            return HttpResponse(
-                self.generate_error_html(str(e)),
-                content_type='text/html'
+            message = self.anthropic_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4000,
+                temperature=0.3,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": claude_prompt
+                    }
+                ]
             )
-
-        # Generate HTML response
-        html_response = self.generate_data_html(
-            queryset, model, keywords, intent, user_profile
-        )
-        
-        return HttpResponse(html_response, content_type='text/html')
-
-    def call_llm(self, prompt):
-        """Make LLM API call and parse response"""
-        payload = {
-            "model": "codellama:13b",
-            "prompt": prompt,
-            "stream": False,
-            "temperature": 0.1,
-        }
-
-        try:
-            response = requests.post(
-                "http://ec2-13-201-68-87.ap-south-1.compute.amazonaws.com:11434/api/generate",
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(payload),
-                timeout=None
-            )
-            response.raise_for_status()
             
-            raw_output = response.json().get("response", "").strip()
-            # Clean up the response to extract JSON
-            if '{' in raw_output and '}' in raw_output:
-                start = raw_output.find('{')
-                end = raw_output.rfind('}') + 1
-                json_str = raw_output[start:end]
-                return json.loads(json_str)
-            else:
-                return None
-                
-        except (requests.RequestException, json.JSONDecodeError, ValueError) as e:
-            print(f"LLM call error: {e}")
-            return None
-
-    def apply_role_based_filtering(self, model, user, user_profile, keywords):
-        """Apply role-based access control to database queries"""
-        # Build base query from keywords
-        query = Q()
-        for kw in keywords:
-            for field in model._meta.get_fields():
-                field_name = field.name
-                
-                # Skip sensitive fields
-                if field_name in ['password', 'is_superuser', 'is_staff']:
-                    continue
-
-                # Handle ForeignKey and ManyToMany relationships
-                if isinstance(field, (ForeignKey, ManyToManyField)):
-                    related_model = field.related_model
-                    if related_model == User:  # Skip User model queries
-                        continue
-                        
-                    candidate_fields = ['name', 'title', 'description', 'username', 'first_name', 'last_name']
-                    for f in candidate_fields:
-                        try:
-                            related_model._meta.get_field(f)
-                            query |= Q(**{f"{field_name}__{f}__icontains": kw})
-                        except FieldDoesNotExist:
-                            pass
-
-                # Handle text fields
-                elif isinstance(field, (CharField, TextField)):
-                    query |= Q(**{f"{field_name}__icontains": kw})
-
-        # Get base queryset
-        queryset = model.objects.filter(query).distinct()
-
-        # Apply role-based filtering
-        if model == EmployeeProfile:
-            if user_profile.is_manager:
-                # Managers can query their team members
-                team_user_ids = [emp.user.id for emp in EmployeeProfile.objects.filter(manager=user)]
-                team_user_ids.append(user.id)  # Include manager themselves
-                queryset = queryset.filter(user__id__in=team_user_ids)
-            else:
-                # Associates can only query themselves
-                queryset = queryset.filter(user=user)
-                
-        elif hasattr(model, 'assigned_to'):
-            # For models with assigned_to field (ActionItem, etc.)
-            if user_profile.is_manager:
-                # Managers can see items assigned to their team
-                team_user_ids = [emp.user.id for emp in EmployeeProfile.objects.filter(manager=user)]
-                team_user_ids.append(user.id)
-                queryset = queryset.filter(assigned_to__id__in=team_user_ids)
-            else:
-                # Associates can only see their own items
-                queryset = queryset.filter(assigned_to=user)
-                
-        elif hasattr(model, 'created_by'):
-            # For models with created_by field (Survey, etc.)
-            if user_profile.is_manager:
-                # Managers can see items they created or items for their team
-                team_user_ids = [emp.user.id for emp in EmployeeProfile.objects.filter(manager=user)]
-                team_user_ids.append(user.id)
-                queryset = queryset.filter(
-                    Q(created_by=user) | Q(created_by__id__in=team_user_ids)
-                )
-            else:
-                # Associates can see surveys created by their manager or public surveys
-                manager_surveys = Q(created_by=user_profile.manager) if user_profile.manager else Q()
-                public_surveys = Q(target_audience='all')
-                queryset = queryset.filter(manager_surveys | public_surveys)
-
-        # Limit results to prevent overwhelming responses
-        return queryset[:50]
-
-    def generate_data_html(self, queryset, model, keywords, intent, user_profile):
-        """Generate HTML response with query results"""
-        model_name = model.__name__
-        count = queryset.count()
-        
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Query Results - {model_name}</title>
-            <style>
-                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 20px; background: #f5f5f5; }}
-                .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
-                .header {{ border-bottom: 2px solid #a5479f; padding-bottom: 20px; margin-bottom: 30px; }}
-                .header h1 {{ color: #a5479f; margin: 0; font-size: 28px; }}
-                .header p {{ color: #666; margin: 10px 0 0 0; font-size: 16px; }}
-                .meta {{ background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #a5479f; }}
-                .meta strong {{ color: #a5479f; }}
-                .results {{ margin-top: 20px; }}
-                .result-item {{ background: #fff; border: 1px solid #e1e5e9; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
-                .result-item:hover {{ box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: box-shadow 0.2s; }}
-                .result-title {{ font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 10px; }}
-                .result-field {{ margin: 8px 0; padding: 5px 0; }}
-                .field-label {{ font-weight: 600; color: #a5479f; display: inline-block; width: 120px; }}
-                .field-value {{ color: #555; }}
-                .no-results {{ text-align: center; padding: 40px; color: #666; font-size: 18px; }}
-                .timestamp {{ text-align: right; color: #999; font-size: 12px; margin-top: 20px; }}
-                .role-badge {{ background: #a5479f; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🔍 Query Results: {model_name}</h1>
-                    <p>{intent}</p>
-                </div>
-                
-                <div class="meta">
-                    <p><strong>Query:</strong> {', '.join(keywords) if keywords else 'All records'}</p>
-                    <p><strong>Model:</strong> {model_name} | <strong>Results:</strong> {count} records found</p>
-                    <p><strong>User:</strong> {user_profile.user.get_full_name() or user_profile.user.username} 
-                       <span class="role-badge">{'Manager' if user_profile.is_manager else 'Associate'}</span></p>
-                </div>
-        """
-
-        if count == 0:
-            html += """
-                <div class="no-results">
-                    <h3>No results found</h3>
-                    <p>Try adjusting your search terms or check if you have access to this data.</p>
-                </div>
-            """
-        else:
-            html += '<div class="results">'
+            # Extract HTML content from response
+            html_content = message.content[0].text.strip() if message.content else ""
             
-            for obj in queryset:
-                html += self.format_object_html(obj, model)
+            # Ensure we have valid HTML content
+            if not html_content or len(html_content) < 50:
+                return self.generate_error_html("Failed to generate response content")
                 
-            html += '</div>'
-
-        html += f"""
-                <div class="timestamp">
-                    Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        return html
-
-    def format_object_html(self, obj, model):
-        """Format individual object as HTML"""
-        html = '<div class="result-item">'
-        
-        # Try to get a meaningful title
-        title = 'Record'
-        if hasattr(obj, 'title'):
-            title = obj.title
-        elif hasattr(obj, 'name'):
-            title = obj.name
-        elif hasattr(obj, 'question_text'):
-            title = obj.question_text[:100] + '...' if len(obj.question_text) > 100 else obj.question_text
-        elif hasattr(obj, 'user'):
-            title = f"{obj.user.get_full_name() or obj.user.username}"
+            return html_content
+                
+        except Exception as e:
+            logger.error(f"Claude API call error: {e}")
+            return self.generate_error_html(f"Error generating response: {str(e)}")
+    
+    def prepare_context_for_claude(self, context_data: list) -> str:
+        """Prepare context data for Claude in a structured format"""
+        if not context_data:
+            return "No relevant data found."
             
-        html += f'<div class="result-title">{title}</div>'
+        context_lines = []
         
-        # Display relevant fields based on model type
-        fields_to_show = self.get_relevant_fields(model)
+        # Group context by content type
+        grouped_context = {}
+        for item in context_data:
+            content_type = item.get('content_type', 'unknown')
+            if content_type not in grouped_context:
+                grouped_context[content_type] = []
+            grouped_context[content_type].append(item)
         
-        for field_name in fields_to_show:
-            try:
-                field = model._meta.get_field(field_name)
-                value = getattr(obj, field_name, None)
+        # Format each group
+        for content_type, items in grouped_context.items():
+            context_lines.append(f"\n{content_type.upper()} DATA:")
+            for i, item in enumerate(items[:5], 1):  # Limit to top 5 per type
+                title = item.get('title', 'No title')
+                content = item.get('content', '')[:200] + '...' if len(item.get('content', '')) > 200 else item.get('content', '')
+                similarity = item.get('similarity', 0.0)
+                context_lines.append(f"{i}. {title} (Relevance: {similarity:.2f})")
+                context_lines.append(f"   Content: {content}")
                 
-                if value is not None:
-                    # Format the value appropriately
-                    if isinstance(field, (ForeignKey, ManyToManyField)):
-                        if isinstance(field, ForeignKey):
-                            display_value = str(value)
-                        else:  # ManyToMany
-                            display_value = ', '.join([str(v) for v in value.all()[:3]])
-                            if value.count() > 3:
-                                display_value += f' (+{value.count() - 3} more)'
-                    elif hasattr(value, 'strftime'):  # DateTime field
-                        display_value = value.strftime('%Y-%m-%d %H:%M')
-                    else:
-                        display_value = str(value)
-                        
-                    # Truncate long values
-                    if len(display_value) > 200:
-                        display_value = display_value[:200] + '...'
-                        
-                    html += f"""
-                        <div class="result-field">
-                            <span class="field-label">{field_name.replace('_', ' ').title()}:</span>
-                            <span class="field-value">{display_value}</span>
-                        </div>
-                    """
-            except (FieldDoesNotExist, AttributeError):
-                continue
-                
-        html += '</div>'
-        return html
-
-    def get_relevant_fields(self, model):
-        """Get relevant fields to display for each model type"""
-        field_mapping = {
-            ActionItem: ['assigned_to', 'title', 'status', 'action', 'created_at'],
-            Project: ['title', 'description', 'status', 'criticality', 'start_date', 'go_live_date'],
-            Course: ['title', 'description', 'source', 'created_at'],
-            CourseCategory: ['name', 'description'],
-            EmployeeProfile: ['user', 'role', 'mental_health', 'motivation_factor', 'manager'],
-            ProjectAllocation: ['employee', 'project', 'allocation_percentage', 'start_date', 'end_date'],
-            Survey: ['title', 'description', 'survey_type', 'status', 'created_by', 'start_date', 'end_date'],
-            SurveyQuestion: ['survey', 'question_text', 'question_type', 'is_required'],
-            SurveyResponse: ['survey', 'respondent', 'is_completed', 'submitted_at'],
-            SurveyAnswer: ['response', 'question', 'answer_text', 'answer_rating', 'answer_boolean']
-        }
+                # Add metadata if available
+                metadata = item.get('metadata', {})
+                if metadata:
+                    context_lines.append(f"   Details: {json.dumps(metadata, default=str)}")
+                context_lines.append("")
         
-        return field_mapping.get(model, ['id', 'created_at'])
+        return "\n".join(context_lines)
 
-    def generate_error_html(self, error_message):
+    def generate_error_html(self, error_message: str) -> str:
         """Generate HTML error response"""
         return f"""
         <!DOCTYPE html>
@@ -391,20 +185,23 @@ class ChatAPIView(APIView):
             <title>Query Error</title>
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 20px; background: #f5f5f5; }}
-                .container {{ max-width: 600px; margin: 50px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }}
-                .error-icon {{ font-size: 48px; margin-bottom: 20px; }}
-                .error-title {{ color: #e74c3c; font-size: 24px; margin-bottom: 15px; }}
-                .error-message {{ color: #666; font-size: 16px; line-height: 1.5; }}
-                .timestamp {{ color: #999; font-size: 12px; margin-top: 20px; }}
+                .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                .error {{ background: #fee; border: 1px solid #fcc; border-radius: 8px; padding: 20px; text-align: center; }}
+                .error h2 {{ color: #c33; margin: 0 0 10px 0; }}
+                .error p {{ color: #666; margin: 0; }}
+                .icon {{ font-size: 48px; margin-bottom: 15px; }}
             </style>
         </head>
         <body>
             <div class="container">
-                <div class="error-icon">⚠️</div>
-                <h2 class="error-title">Query Error</h2>
-                <p class="error-message">{error_message}</p>
-                <div class="timestamp">{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+                <div class="error">
+                    <div class="icon">⚠️</div>
+                    <h2>Query Error</h2>
+                    <p>{error_message}</p>
+                </div>
             </div>
         </body>
         </html>
         """
+
+
