@@ -69,7 +69,7 @@ class UserAdmin(BaseUserAdmin):
 class EmployeeProfileAdmin(admin.ModelAdmin):
     list_display = (
         'user', 'get_full_name', 'role', 'manager', 'age', 
-        'mental_health', 'motivation_factor', 'manager_assessment_risk', 'suggested_risk'
+        'mental_health', 'motivation_factor', 'manager_assessment_risk', 'suggested_risk', 'employee_project_criticality'
     )
     list_filter = (
         'mental_health', 'motivation_factor', 'career_opportunities', 

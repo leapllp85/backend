@@ -174,4 +174,23 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# Redis Configuration
+REDIS_HOST = '34.93.168.19'
+REDIS_PORT = 24798
+REDIS_DB = 0
+
+# Redis connection settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}',
+    }
+}
+
+# Chat processing settings
+CHAT_PROCESSING_TIMEOUT = 300  # 5 minutes
+CHAT_RESPONSE_TTL = 21600  # 6 hours (was 1 hour)
+CHAT_CONTEXT_TTL = 21600  # 6 hours for database context cache
+
+# Anthropic API Key
 #

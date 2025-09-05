@@ -85,12 +85,12 @@ class DashboardQuickDataAPIView(APIView):
             team_members = User.objects.filter(id=user.id)
             scope = 'personal'
         
-        users = team_members.prefetch_related('allocations__project')
+        users = team_members.prefetch_related('employee_allocations__project')
         
         criticality_scores = {'High': 3, 'Medium': 2, 'Low': 1}
         
         for user in users:
-            active_allocations = user.allocations.filter(is_active=True)
+            active_allocations = user.employee_allocations.filter(is_active=True)
             if active_allocations.exists():
                 # Get highest criticality from active projects
                 max_criticality = max(

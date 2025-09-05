@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ActionItem, Project, Course, CourseCategory, EmployeeProfile, ProjectAllocation, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
+from ..models import ActionItem, Project, Course, CourseCategory, EmployeeProfile, ProjectAllocation, Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
 from django.contrib.auth.models import User
 
 class ActionItemSerializer(serializers.ModelSerializer):
@@ -57,10 +57,24 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     first_name = serializers.CharField(source='user.first_name', read_only=True)
     last_name = serializers.CharField(source='user.last_name', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    role = serializers.CharField(source='user.employee_profile.role', read_only=True)
+    is_manager = serializers.BooleanField(source='user.employee_profile.is_manager', read_only=True)
+    manager_name = serializers.CharField(source='user.employee_profile.manager_name', read_only=True)
+    team_count = serializers.IntegerField(source='user.employee_profile.team_count', read_only=True)
+    project_criticality = serializers.CharField(source='user.employee_profile.project_criticality', read_only=True)
+    total_allocation = serializers.IntegerField(source='user.employee_profile.total_allocation', read_only=True)
     
     class Meta:
         model = EmployeeProfile
-        fields = '__all__'
+        fields = [
+            'id', 'username', 'first_name', 'last_name', 'email', 
+            'mental_health', 'motivation_factor', 'career_opportunities', 
+            'personal_reason', 'suggested_risk', 'manager_assessment_risk',
+            'all_triggers', 'primary_trigger', 'age', 'profile_pic',
+            'role', 'is_manager', 'manager_name', 'team_count',
+            'project_criticality', 'total_allocation'
+        ]
 
 
 class ProjectAllocationSerializer(serializers.ModelSerializer):
@@ -70,7 +84,10 @@ class ProjectAllocationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ProjectAllocation
-        fields = '__all__'
+        fields = [
+            'id', 'employee_name', 'project_name', 'project_criticality',
+            'allocation_percentage', 'start_date', 'end_date', 'is_active'
+        ]
 
 
 class TeamMemberDetailSerializer(serializers.ModelSerializer):
@@ -104,7 +121,7 @@ class TeamMemberDetailSerializer(serializers.ModelSerializer):
     
     def get_project_criticality(self, obj):
         """Get highest criticality from active project allocations"""
-        active_allocations = obj.allocations.filter(is_active=True)
+        active_allocations = obj.employee_allocations.filter(is_active=True)
         if not active_allocations.exists():
             return 'Low'
         
@@ -117,7 +134,7 @@ class TeamMemberDetailSerializer(serializers.ModelSerializer):
     
     def get_total_allocation(self, obj):
         """Get total allocation percentage across all active projects"""
-        active_allocations = obj.allocations.filter(is_active=True)
+        active_allocations = obj.employee_allocations.filter(is_active=True)
         return sum(alloc.allocation_percentage for alloc in active_allocations)
 
 
@@ -202,6 +219,6 @@ class MyProjectsSerializer(serializers.ModelSerializer):
     def get_allocation_percentage(self, obj):
         user = self.context.get('user')
         if user:
-            allocation = obj.allocations.filter(employee=user, is_active=True).first()
+            allocation = ProjectAllocation.objects.filter(project=obj, employee=user, is_active=True).first()
             return allocation.allocation_percentage if allocation else 0
         return 0

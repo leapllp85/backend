@@ -35,7 +35,7 @@ class MyTeamAPIView(APIView):
             context_message = f"Personal data for associate: {user.get_full_name()}"
         
         # Get team members reporting to this manager
-        team_members = team_members.select_related('employee_profile').prefetch_related('allocations__project')
+        team_members = team_members.select_related('employee_profile').prefetch_related('employee_allocations__project')
         
         serializer = TeamMemberDetailSerializer(team_members, many=True)
         return Response({

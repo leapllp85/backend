@@ -1,13 +1,21 @@
-from django.urls import path
+from django.urls import path, include
 from .views.projects import ProjectAPIView, MyProjectsAPIView, TeamProjectsAPIView
 from .views.courses import CourseAPIView
 from .views.actionitems import ActionItemAPIView
 from .views.llm import ChatAPIView
+from .views.chat_async import ChatInitiateView, ChatResponseView, ChatStatusView
+from .views.cache_management import CacheManagementView, AdminCacheManagementView
 
 from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView
 from .views.dashboard import DashboardQuickDataAPIView, TeamAttritionRiskAPIView, TeamMentalHealthAPIView, TeamUtilizationAPIView
 from .views.allocations import ProjectAllocationAPIView, ProjectTeamAPIView, EmployeeAllocationSummaryAPIView
 from .views.surveys import SurveyListAPIView, SurveyDetailAPIView, SurveyResponseAPIView, SurveyManagementAPIView, MySurveyResponsesAPIView, ManagerSurveyPublishAPIView
+from .views.conversations import (
+    ConversationListCreateView, ConversationDetailView, ConversationMessageListView,
+    ConversationShareListCreateView, add_message_to_conversation,
+    remove_conversation_share, get_shared_conversations
+)
+from .views.criticality import CriticalityVsRiskView, RiskDistributionView, CriticalityMetricsAPIView, CriticalityTrendsAPIView
 
 urlpatterns = [
     # Projects - Role-based access controlled in views
@@ -18,7 +26,12 @@ urlpatterns = [
     # Core functionality - Available to authenticated users
     path('courses/', CourseAPIView.as_view(), name='courses'),
     path('action-items/', ActionItemAPIView.as_view(), name='action-items'),
-    path('chat/', ChatAPIView.as_view(), name='llm-chat'),
+    path('chat/', ChatAPIView.as_view(), name='llm-chat'),  # Legacy sync chat endpoint
+    
+    # Async Chat System - Manager only
+    path('chat/initiate/', ChatInitiateView.as_view(), name='chat-initiate'),
+    path('chat/response/<str:task_id>/', ChatResponseView.as_view(), name='chat-response'),
+    path('chat/status/', ChatStatusView.as_view(), name='chat-status'),
     
     # Team Management - Access controlled by permissions
     path('my-team/', MyTeamAPIView.as_view(), name='my-team'),
@@ -44,4 +57,30 @@ urlpatterns = [
     path('my-survey-responses/', MySurveyResponsesAPIView.as_view(), name='my-survey-responses'),
     path('survey-management/', SurveyManagementAPIView.as_view(), name='survey-management'),
     path('manager/publish-survey/', ManagerSurveyPublishAPIView.as_view(), name='manager-publish-survey'),
+    
+    # Conversations - Chat system
+    # Conversation CRUD
+    path('conversations/', ConversationListCreateView.as_view(), name='conversation-list-create'),
+    path('conversations/<uuid:id>/', ConversationDetailView.as_view(), name='conversation-detail'),
+    
+    # Conversation messages
+    path('conversations/<uuid:conversation_id>/messages/', ConversationMessageListView.as_view(), name='conversation-messages'),
+    path('conversations/<uuid:conversation_id>/messages/add/', add_message_to_conversation, name='add-message'),
+    
+    # Conversation sharing
+    path('conversations/<uuid:conversation_id>/shares/', ConversationShareListCreateView.as_view(), name='conversation-shares'),
+    path('conversations/<uuid:conversation_id>/shares/<uuid:share_id>/', remove_conversation_share, name='remove-share'),
+    path('shared-conversations/', get_shared_conversations, name='shared-conversations'),
+
+    # Criticality
+    path('criticality/vs-risk/', CriticalityVsRiskView.as_view(), name='criticality-vs-risk'),
+    path('criticality/risk-distribution/', RiskDistributionView.as_view(), name='risk-distribution'),
+    path('criticality/metrics/', CriticalityMetricsAPIView.as_view(), name='criticality-metrics'),
+    path('criticality/trends/', CriticalityTrendsAPIView.as_view(), name='criticality-trends'),
+    
+    # Cache Management
+    path('cache/stats/', CacheManagementView.as_view(), name='cache-stats'),
+    path('cache/clear/', CacheManagementView.as_view(), name='cache-clear'),
+    path('admin/cache/stats/', AdminCacheManagementView.as_view(), name='admin-cache-stats'),
+    path('admin/cache/clear/', AdminCacheManagementView.as_view(), name='admin-cache-clear'),
 ]

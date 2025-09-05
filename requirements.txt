@@ -43,3 +43,6 @@ scipy>=1.11.0
 
 # Anthropic Claude (main dependency for RAG system)
 anthropic>=0.8.0
+
+# Redis for caching and background task management
+redis>=5.0.0

@@ -222,23 +222,23 @@ class TeamProjectsAPIView(APIView):
             team_members = User.objects.filter(employee_profile__manager=user)
             # Get all projects where team members are allocated
             team_projects = Project.objects.filter(
-                allocations__employee__in=team_members,
-                allocations__is_active=True
-            ).distinct().prefetch_related('allocations__employee')
+                project_allocations__employee__in=team_members,
+                project_allocations__is_active=True
+            ).distinct().prefetch_related('project_allocations__employee')
             scope = 'team'
         else:
             # Associates see only their own projects
             team_members = User.objects.filter(id=user.id)
             team_projects = Project.objects.filter(
-                allocations__employee=user,
-                allocations__is_active=True
-            ).distinct().prefetch_related('allocations__employee')
+                project_allocations__employee=user,
+                project_allocations__is_active=True
+            ).distinct().prefetch_related('project_allocations__employee')
             scope = 'personal'
         
         projects_data = []
         for project in team_projects:
             # Get team member allocations for this project
-            team_allocations = project.allocations.filter(
+            team_allocations = project.project_allocations.filter(
                 employee__in=team_members,
                 is_active=True
             ).select_related('employee')
