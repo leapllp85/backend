@@ -85,8 +85,8 @@ class ProjectAllocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectAllocation
         fields = [
-            'id', 'employee_name', 'project_name', 'project_criticality',
-            'allocation_percentage', 'start_date', 'end_date', 'is_active'
+            'id', 'employee', 'project', 'employee_name', 'project_name', 'project_criticality',
+            'allocation_percentage', 'start_date', 'end_date', 'is_active', 'criticality'
         ]
 
 

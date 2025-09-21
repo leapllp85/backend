@@ -6,9 +6,10 @@ from .views.llm import ChatAPIView
 from .views.chat_async import ChatInitiateView, ChatResponseView, ChatStatusView
 from .views.cache_management import CacheManagementView, AdminCacheManagementView
 
-from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView
+from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView, TeamStatsAPIView, ProjectStatsAPIView, MetricsAPIView, NotificationsAPIView, ProjectRisksAPIView
 from .views.dashboard import DashboardQuickDataAPIView, TeamAttritionRiskAPIView, TeamMentalHealthAPIView, TeamUtilizationAPIView
 from .views.allocations import ProjectAllocationAPIView, ProjectTeamAPIView, EmployeeAllocationSummaryAPIView
+from .views.users import UserSearchAPIView
 from .views.surveys import SurveyListAPIView, SurveyDetailAPIView, SurveyResponseAPIView, SurveyManagementAPIView, MySurveyResponsesAPIView, ManagerSurveyPublishAPIView
 from .views.conversations import (
     ConversationListCreateView, ConversationDetailView, ConversationMessageListView,
@@ -35,7 +36,13 @@ urlpatterns = [
     
     # Team Management - Access controlled by permissions
     path('my-team/', MyTeamAPIView.as_view(), name='my-team'),
+    path('my-team/<int:employee_id>/', MyTeamAPIView.as_view(), name='my-team-detail'),
     path('team-analytics/', TeamAnalyticsAPIView.as_view(), name='team-analytics'),
+    path('team-stats/', TeamStatsAPIView.as_view(), name='team-stats'),
+    path('project-stats/', ProjectStatsAPIView.as_view(), name='project-stats'),
+    path('metrics/', MetricsAPIView.as_view(), name='metrics'),
+    path('notifications/', NotificationsAPIView.as_view(), name='notifications'),
+    path('project-risks/', ProjectRisksAPIView.as_view(), name='project-risks'),
     path('team-analytics/attrition-graph/', AttritionGraphAPIView.as_view(), name='team-attrition-graph'),
     path('team-analytics/distribution-graph/', DistributionGraphAPIView.as_view(), name='team-distribution-graph'),
     
@@ -47,8 +54,12 @@ urlpatterns = [
     
     # Project Allocations - Access controlled by permissions
     path('allocations/', ProjectAllocationAPIView.as_view(), name='project-allocations'),
+    path('allocations/<int:pk>/', ProjectAllocationAPIView.as_view(), name='project-allocation-detail'),
     path('project-team/<int:project_id>/', ProjectTeamAPIView.as_view(), name='project-team'),
     path('employee-allocation-summary/', EmployeeAllocationSummaryAPIView.as_view(), name='employee-allocation-summary'),
+    
+    # User Management
+    path('users/search/', UserSearchAPIView.as_view(), name='user-search'),
     
     # Surveys - Role-based access controlled in views
     path('surveys/', SurveyListAPIView.as_view(), name='surveys'),
@@ -56,6 +67,7 @@ urlpatterns = [
     path('surveys/<int:survey_id>/respond/', SurveyResponseAPIView.as_view(), name='survey-response'),
     path('my-survey-responses/', MySurveyResponsesAPIView.as_view(), name='my-survey-responses'),
     path('survey-management/', SurveyManagementAPIView.as_view(), name='survey-management'),
+    path('survey-management/<int:survey_id>/details/', SurveyManagementAPIView.as_view(), name='survey-details'),
     path('manager/publish-survey/', ManagerSurveyPublishAPIView.as_view(), name='manager-publish-survey'),
     
     # Conversations - Chat system

@@ -24,8 +24,34 @@ class Survey(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_surveys')
     target_audience = models.CharField(
         max_length=20, 
-        choices=[('all', 'All Employees'), ('team', 'My Team Only')], 
+        choices=[
+            ('all', 'All Employees'), 
+            ('team', 'My Team Only'),
+            ('department', 'By Department'),
+            ('role', 'By Role'),
+            ('risk_level', 'By Risk Level'),
+            ('custom', 'Custom Selection')
+        ], 
         default='all'
+    )
+    
+    # Additional targeting fields
+    target_departments = models.JSONField(
+        blank=True, null=True,
+        help_text="List of department names for department targeting"
+    )
+    target_roles = models.JSONField(
+        blank=True, null=True,
+        help_text="List of roles: ['manager', 'associate'] for role targeting"
+    )
+    target_risk_levels = models.JSONField(
+        blank=True, null=True,
+        help_text="List of risk levels: ['High', 'Medium', 'Low'] for risk targeting"
+    )
+    target_employees = models.ManyToManyField(
+        User, blank=True,
+        related_name='targeted_surveys',
+        help_text="Specific employees for custom targeting"
     )
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
@@ -48,6 +74,53 @@ class Survey(models.Model):
         now = timezone.now()
         return (self.status == 'active' and 
                 self.start_date <= now <= self.end_date)
+    
+    @property
+    def is_viewable(self):
+        """Check if survey can be viewed (includes expired surveys)"""
+        return self.status in ['active', 'closed']
+    
+    @property
+    def can_accept_responses(self):
+        """Check if survey can accept new responses"""
+        return self.is_active
+    
+    def get_target_employees(self):
+        """Get list of employees based on targeting criteria"""
+        from .employees import EmployeeProfile
+        
+        if self.target_audience == 'all':
+            return User.objects.filter(employee_profile__isnull=False)
+        
+        elif self.target_audience == 'team':
+            return User.objects.filter(employee_profile__manager=self.created_by)
+        
+        elif self.target_audience == 'department':
+            # Assuming department is stored in a field - adjust as needed
+            if self.target_departments:
+                return User.objects.filter(
+                    employee_profile__department__in=self.target_departments
+                )
+        
+        elif self.target_audience == 'role':
+            if self.target_roles:
+                if 'manager' in self.target_roles and 'associate' in self.target_roles:
+                    return User.objects.filter(employee_profile__isnull=False)
+                elif 'manager' in self.target_roles:
+                    return User.objects.filter(employee_profile__is_manager=True)
+                elif 'associate' in self.target_roles:
+                    return User.objects.filter(employee_profile__is_manager=False)
+        
+        elif self.target_audience == 'risk_level':
+            if self.target_risk_levels:
+                return User.objects.filter(
+                    employee_profile__suggested_risk__in=self.target_risk_levels
+                )
+        
+        elif self.target_audience == 'custom':
+            return self.target_employees.all()
+        
+        return User.objects.none()
 
 
 class SurveyQuestion(models.Model):

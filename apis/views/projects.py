@@ -70,6 +70,20 @@ class ProjectAPIView(APIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             project = serializer.save()
+            
+            # Assign the creating user to the project
+            project.assigned_to.add(user)
+            
+            # If assigned_to users are provided in request data, add them too
+            assigned_users = request.data.get('assigned_to', [])
+            if assigned_users:
+                for user_id in assigned_users:
+                    try:
+                        assigned_user = User.objects.get(id=user_id)
+                        project.assigned_to.add(assigned_user)
+                    except User.DoesNotExist:
+                        continue
+            
             return Response({
                 'message': 'Project created successfully',
                 'data': serializer.data,

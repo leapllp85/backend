@@ -5,11 +5,13 @@ from django.contrib.auth.models import User
 from django.db.models import Sum, Q
 from ..models import ProjectAllocation, Project
 from ..serializers import ProjectAllocationSerializer
+from ..permissions import IsManagerOrAssociate
 from datetime import datetime
 
 
 class ProjectAllocationAPIView(APIView):
     """API for managing project allocations"""
+    permission_classes = [IsManagerOrAssociate]
     
     def get(self, request):
         """Get project allocations"""
@@ -101,6 +103,7 @@ class ProjectAllocationAPIView(APIView):
 
 class ProjectTeamAPIView(APIView):
     """API for getting project team members and their allocations"""
+    permission_classes = [IsManagerOrAssociate]
     
     def get(self, request, project_id):
         """Get all team members for a specific project"""
@@ -138,16 +141,133 @@ class ProjectTeamAPIView(APIView):
             'project': {
                 'id': project.id,
                 'title': project.title,
+                'description': project.description,
+                'start_date': project.start_date,
+                'end_date': project.go_live_date,
                 'status': project.status,
                 'criticality': project.criticality
             },
             'team_members': team_data,
             'total_allocation': sum(member['allocation_percentage'] for member in team_data)
         })
+    
+    def post(self, request, project_id):
+        """Add a user to the project team"""
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        employee_id = request.data.get('employee_id')
+        allocation_percentage = request.data.get('allocation_percentage', 0)
+        
+        if not employee_id:
+            return Response({'error': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            employee = User.objects.get(id=employee_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if user is already allocated to this project
+        existing_allocation = ProjectAllocation.objects.filter(
+            project=project,
+            employee=employee,
+            is_active=True
+        ).first()
+        
+        if existing_allocation:
+            return Response({'error': 'Employee is already allocated to this project'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate that total allocation doesn't exceed 100%
+        if allocation_percentage > 0:
+            existing_total = ProjectAllocation.objects.filter(
+                employee=employee,
+                is_active=True
+            ).aggregate(
+                total=Sum('allocation_percentage')
+            )['total'] or 0
+            
+            if existing_total + allocation_percentage > 100:
+                return Response({
+                    'error': f'Total allocation would exceed 100%. Current: {existing_total}%, Trying to add: {allocation_percentage}%'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create the allocation
+        allocation_data = {
+            'project': project.id,
+            'employee': employee.id,
+            'allocation_percentage': allocation_percentage,
+            'start_date': request.data.get('start_date', datetime.now().date()),
+            'end_date': request.data.get('end_date'),
+            'is_active': True
+        }
+        
+        serializer = ProjectAllocationSerializer(data=allocation_data)
+        if serializer.is_valid():
+            allocation = serializer.save()
+            
+            # Return the new team member data
+            profile = getattr(employee, 'employee_profile', None)
+            team_member = {
+                'allocation_id': allocation.id,
+                'employee_id': employee.id,
+                'username': employee.username,
+                'first_name': employee.first_name,
+                'last_name': employee.last_name,
+                'allocation_percentage': allocation.allocation_percentage,
+                'start_date': allocation.start_date,
+                'end_date': allocation.end_date,
+                'profile_pic': profile.profile_pic if profile else None,
+                'mental_health': profile.mental_health if profile else None,
+                'suggested_risk': profile.suggested_risk if profile else None,
+            }
+            
+            return Response({
+                'message': 'Employee added to project successfully',
+                'team_member': team_member
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, project_id):
+        """Remove a user from the project team"""
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        employee_id = request.data.get('employee_id')
+        
+        if not employee_id:
+            return Response({'error': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            employee = User.objects.get(id=employee_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Find the allocation
+        try:
+            allocation = ProjectAllocation.objects.get(
+                project=project,
+                employee=employee,
+                is_active=True
+            )
+        except ProjectAllocation.DoesNotExist:
+            return Response({'error': 'Employee is not allocated to this project'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Remove the allocation (soft delete by setting is_active=False or hard delete)
+        allocation.delete()  # Hard delete - you can change this to allocation.is_active = False; allocation.save() for soft delete
+        
+        return Response({
+            'message': 'Employee removed from project successfully'
+        }, status=status.HTTP_200_OK)
 
 
 class EmployeeAllocationSummaryAPIView(APIView):
     """API for getting employee allocation summary"""
+    permission_classes = [IsManagerOrAssociate]
     
     def get(self, request, employee_id):
         """Get allocation summary for a specific employee"""

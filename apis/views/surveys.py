@@ -28,9 +28,7 @@ class SurveyListAPIView(APIView):
         # Get active surveys
         now = timezone.now()
         surveys = Survey.objects.filter(
-            status='active',
-            start_date__lte=now,
-            end_date__gte=now
+            status__in=['active', 'closed']
         ).prefetch_related('questions').select_related('created_by')
         
         # Filter based on target audience and user role
@@ -71,7 +69,8 @@ class SurveyListAPIView(APIView):
                 'is_anonymous': survey.is_anonymous,
                 'question_count': survey.questions.count(),
                 'is_completed': is_completed,
-                'status': 'completed' if is_completed else 'pending',
+                'status': 'completed' if is_completed else ('expired' if not survey.is_active else 'pending'),
+                'can_respond': survey.can_accept_responses and not is_completed,
                 'created_by': {
                     'id': survey.created_by.id,
                     'name': f"{survey.created_by.first_name} {survey.created_by.last_name}",
@@ -124,10 +123,10 @@ class SurveyDetailAPIView(APIView):
                 'error': 'Survey not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Check if survey is accessible to user
-        if not survey.is_active:
+        # Check if survey is viewable (allow expired surveys for viewing)
+        if not survey.is_viewable:
             return Response({
-                'error': 'Survey is not currently active'
+                'error': 'Survey is not available'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if user has already completed this survey
@@ -136,6 +135,13 @@ class SurveyDetailAPIView(APIView):
             respondent=user,
             is_completed=True
         ).first()
+        
+        # Add survey status information to response
+        survey_status = {
+            'is_active': survey.is_active,
+            'can_accept_responses': survey.can_accept_responses,
+            'is_expired': not survey.is_active and survey.status == 'active'
+        }
         
         if existing_response:
             return Response({
@@ -181,7 +187,10 @@ class SurveyDetailAPIView(APIView):
                 'description': survey.description,
                 'survey_type': survey.survey_type,
                 'is_anonymous': survey.is_anonymous,
-                'end_date': survey.end_date
+                'start_date': survey.start_date,
+                'end_date': survey.end_date,
+                'status': survey.status,
+                **survey_status
             },
             'questions': questions_data,
             'response_id': survey_response.id,
@@ -204,9 +213,10 @@ class SurveyResponseAPIView(APIView):
                 'error': 'Survey not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        if not survey.is_active:
+        # Only allow responses for active surveys
+        if not survey.can_accept_responses:
             return Response({
-                'error': 'Survey is not currently active'
+                'error': 'Survey is no longer accepting responses'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get or create survey response
@@ -435,8 +445,11 @@ class SurveyManagementAPIView(APIView):
     """API for managers to create and manage surveys (legacy endpoint)"""
     permission_classes = [IsAuthenticated, IsManager]
     
-    def get(self, request):
-        """Get surveys created by the manager"""
+    def get(self, request, survey_id=None):
+        """Get surveys created by the manager or detailed survey stats"""
+        if survey_id:
+            return self.get_survey_details(request, survey_id)
+        
         user = request.user
         
         try:
@@ -454,29 +467,171 @@ class SurveyManagementAPIView(APIView):
         surveys = Survey.objects.filter(
             created_by=user
         ).annotate(
-            response_count=Count('responses'),
+            total_responses=Count('responses'),
             completed_responses=Count('responses', filter=Q(responses__is_completed=True))
         ).order_by('-created_at')
         
         survey_data = []
         for survey in surveys:
+            target_employees = survey.get_target_employees() if hasattr(survey, 'get_target_employees') else []
+            target_count = len(target_employees)
+            
+            # Calculate completion rate
+            completion_rate = 0
+            if target_count > 0:
+                completion_rate = round((survey.completed_responses / target_count) * 100)
+            
+            # Determine survey status for UI
+            ui_status = 'active'
+            if survey.status == 'closed':
+                ui_status = 'closed'
+            elif not survey.is_active:
+                ui_status = 'expired'
+            
             survey_info = {
                 'id': survey.id,
                 'title': survey.title,
+                'description': survey.description,
                 'survey_type': survey.survey_type,
                 'status': survey.status,
+                'ui_status': ui_status,
                 'target_audience': survey.target_audience,
-                'start_date': survey.start_date,
-                'end_date': survey.end_date,
-                'response_count': survey.response_count,
+                'start_date': survey.start_date.isoformat() if survey.start_date else None,
+                'end_date': survey.end_date.isoformat() if survey.end_date else None,
+                'created_at': survey.created_at.isoformat() if survey.created_at else None,
+                'is_anonymous': survey.is_anonymous,
+                'total_responses': survey.total_responses,
                 'completed_responses': survey.completed_responses,
-                'is_active': survey.is_active
+                'pending_responses': survey.total_responses - survey.completed_responses,
+                'target_employees_count': target_count,
+                'completion_rate': completion_rate,
+                'is_active': survey.is_active,
+                'question_count': survey.questions.count() if hasattr(survey, 'questions') else 0
             }
             survey_data.append(survey_info)
         
         return Response({
             'surveys': survey_data,
             'total_surveys': len(survey_data)
+        })
+    
+    def get_survey_details(self, request, survey_id):
+        """Get detailed survey statistics for dashboard"""
+        user = request.user
+        
+        try:
+            survey = Survey.objects.get(id=survey_id, created_by=user)
+        except Survey.DoesNotExist:
+            return Response({
+                'error': 'Survey not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get all responses and answers
+        responses = SurveyResponse.objects.filter(survey=survey)
+        completed_responses = responses.filter(is_completed=True)
+        
+        # Get target employees
+        target_employees = survey.get_target_employees()
+        target_count = len(target_employees)
+        
+        # Calculate completion rate
+        completion_rate = 0
+        if target_count > 0:
+            completion_rate = round((completed_responses.count() / target_count) * 100)
+        
+        # Get question statistics
+        questions_stats = []
+        for question in survey.questions.all():
+            answers = SurveyAnswer.objects.filter(
+                question=question,
+                response__is_completed=True
+            )
+            
+            question_stat = {
+                'id': question.id,
+                'question_text': question.question_text,
+                'question_type': question.question_type,
+                'total_answers': answers.count(),
+                'answer_distribution': {}
+            }
+            
+            # Calculate answer distribution for rating questions
+            if question.question_type == 'rating':
+                for rating in range(1, 6):  # 1-5 rating scale
+                    count = answers.filter(answer_rating=rating).count()
+                    percentage = round((count / answers.count()) * 100) if answers.count() > 0 else 0
+                    question_stat['answer_distribution'][str(rating)] = {
+                        'count': count,
+                        'percentage': percentage
+                    }
+            
+            # Calculate answer distribution for choice questions
+            elif question.question_type == 'choice':
+                if question.choices:
+                    for choice in question.choices:
+                        count = answers.filter(answer_choice=choice).count()
+                        percentage = round((count / answers.count()) * 100) if answers.count() > 0 else 0
+                        question_stat['answer_distribution'][choice] = {
+                            'count': count,
+                            'percentage': percentage
+                        }
+            
+            # Calculate answer distribution for boolean questions
+            elif question.question_type == 'boolean':
+                for bool_val in [True, False]:
+                    count = answers.filter(answer_boolean=bool_val).count()
+                    percentage = round((count / answers.count()) * 100) if answers.count() > 0 else 0
+                    label = 'Yes' if bool_val else 'No'
+                    question_stat['answer_distribution'][label] = {
+                        'count': count,
+                        'percentage': percentage
+                    }
+            
+            questions_stats.append(question_stat)
+        
+        # Get pending team members
+        pending_members = []
+        if survey.target_audience == 'team':
+            team_members = User.objects.filter(employee_profile__manager=user)
+            completed_user_ids = completed_responses.values_list('respondent_id', flat=True)
+            
+            for member in team_members:
+                if member.id not in completed_user_ids:
+                    try:
+                        profile = member.employee_profile
+                        pending_members.append({
+                            'id': member.id,
+                            'name': f"{member.first_name} {member.last_name}",
+                            'email': member.email,
+                            'department': getattr(profile, 'department', 'Unknown'),
+                            'status': 'pending'
+                        })
+                    except:
+                        continue
+        
+        return Response({
+            'survey': {
+                'id': survey.id,
+                'title': survey.title,
+                'description': survey.description,
+                'survey_type': survey.survey_type,
+                'status': survey.status,
+                'ui_status': 'closed' if survey.status == 'closed' else ('expired' if not survey.is_active else 'active'),
+                'created_at': survey.created_at.isoformat(),
+                'start_date': survey.start_date.isoformat() if survey.start_date else None,
+                'end_date': survey.end_date.isoformat() if survey.end_date else None,
+                'is_active': survey.is_active,
+                'question_count': survey.questions.count()
+            },
+            'statistics': {
+                'total_responses': responses.count(),
+                'completed_responses': completed_responses.count(),
+                'pending_responses': responses.filter(is_completed=False).count(),
+                'target_employees_count': target_count,
+                'completion_rate': completion_rate
+            },
+            'questions_stats': questions_stats,
+            'pending_members': pending_members
         })
     
     def post(self, request):
