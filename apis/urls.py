@@ -4,7 +4,6 @@ from .views.courses import CourseAPIView
 from .views.actionitems import ActionItemAPIView
 from .views.llm import ChatAPIView
 from .views.chat_async import ChatInitiateView, ChatResponseView, ChatStatusView
-from .views.cache_management import CacheManagementView, AdminCacheManagementView
 
 from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView, TeamStatsAPIView, ProjectStatsAPIView, MetricsAPIView, NotificationsAPIView, ProjectRisksAPIView
 from .views.dashboard import DashboardQuickDataAPIView, TeamAttritionRiskAPIView, TeamMentalHealthAPIView, TeamUtilizationAPIView
@@ -67,7 +66,8 @@ urlpatterns = [
     path('surveys/<int:survey_id>/respond/', SurveyResponseAPIView.as_view(), name='survey-response'),
     path('my-survey-responses/', MySurveyResponsesAPIView.as_view(), name='my-survey-responses'),
     path('survey-management/', SurveyManagementAPIView.as_view(), name='survey-management'),
-    path('survey-management/<int:survey_id>/details/', SurveyManagementAPIView.as_view(), name='survey-details'),
+    path('surveys/manage/', SurveyManagementAPIView.as_view(), name='surveys-manage'),
+    path('survey-management/<int:survey_id>/details/', SurveyDetailAPIView.as_view(), name='survey-details'),
     path('manager/publish-survey/', ManagerSurveyPublishAPIView.as_view(), name='manager-publish-survey'),
     
     # Conversations - Chat system
@@ -89,10 +89,4 @@ urlpatterns = [
     path('criticality/risk-distribution/', RiskDistributionView.as_view(), name='risk-distribution'),
     path('criticality/metrics/', CriticalityMetricsAPIView.as_view(), name='criticality-metrics'),
     path('criticality/trends/', CriticalityTrendsAPIView.as_view(), name='criticality-trends'),
-    
-    # Cache Management
-    path('cache/stats/', CacheManagementView.as_view(), name='cache-stats'),
-    path('cache/clear/', CacheManagementView.as_view(), name='cache-clear'),
-    path('admin/cache/stats/', AdminCacheManagementView.as_view(), name='admin-cache-stats'),
-    path('admin/cache/clear/', AdminCacheManagementView.as_view(), name='admin-cache-clear'),
 ]

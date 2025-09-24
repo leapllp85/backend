@@ -111,8 +111,13 @@ DATABASES = {
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "llm-schema-cache"
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://34.93.168.19:24798/0",
+    },
+    "team_cache": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://34.93.168.19:24798/1",
+        "TIMEOUT": 300,  # 5 minutes
     }
 }
 

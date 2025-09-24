@@ -6,7 +6,7 @@ from apis.permissions import IsManager
 from apis.serializers import CriticalityVsRiskSerializer, RiskDistributionSerializer
 from apis.models import EmployeeProfile
 from rest_framework import status
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Q, Sum, Case, When, IntegerField, F
 from django.utils import timezone
 from datetime import datetime, timedelta
 import hashlib
@@ -26,24 +26,51 @@ class CriticalityVsRiskView(APIView):
 
     def get(self, request):
         user_id = request.user.id
-        employee_profile = EmployeeProfile.objects.filter(manager=user_id)
-        # Scatter Graph Data with Mental Health and Career Growth score against each employee
-        scatter_data = []
-        mental_health_scores = []
-        career_growth_scores = []
-        for profile in employee_profile:
-            scatter_data.append({
-                "criticality": profile.employee_project_criticality,
-                "risk": profile.suggested_risk,
-                "employee_name": profile.user.get_full_name()
-            })
-            mental_health_scores.append(profile.mental_health_score())
-            career_growth_scores.append(profile.career_opportunities_score())
+        
+        # Optimized query with select_related and database aggregations
+        employee_profiles = EmployeeProfile.objects.filter(
+            manager=user_id
+        ).select_related('user').annotate(
+            mental_health_numeric=Case(
+                When(mental_health='High', then=3),
+                When(mental_health='Medium', then=2),
+                When(mental_health='Low', then=1),
+                default=2,
+                output_field=IntegerField()
+            ),
+            career_opportunities_numeric=Case(
+                When(career_opportunities='High', then=3),
+                When(career_opportunities='Medium', then=2),
+                When(career_opportunities='Low', then=1),
+                default=2,
+                output_field=IntegerField()
+            )
+        )
+        
+        # Single aggregation query for averages
+        aggregated_data = employee_profiles.aggregate(
+            avg_mental_health=Avg('mental_health_numeric'),
+            avg_career_growth=Avg('career_opportunities_numeric'),
+            total_count=Count('id')
+        )
+        
+        # Build scatter data efficiently
+        scatter_data = [{
+            "criticality": profile.employee_project_criticality,
+            "risk": profile.suggested_risk,
+            "employee_name": f"{profile.user.first_name} {profile.user.last_name}"
+        } for profile in employee_profiles]
+        
+        # Calculate averages from aggregated data
+        avg_mental_health = int(aggregated_data['avg_mental_health'] or 2)
+        avg_career_growth = int(aggregated_data['avg_career_growth'] or 2)
+        
         data = {
-            "work_wellness": CRITICALITY_SCORE_MAP[sum(mental_health_scores) // len(mental_health_scores)],
-            "career_growth": CRITICALITY_SCORE_MAP[sum(career_growth_scores) // len(career_growth_scores)],
+            "work_wellness": CRITICALITY_SCORE_MAP.get(avg_mental_health, "Medium"),
+            "career_growth": CRITICALITY_SCORE_MAP.get(avg_career_growth, "Medium"),
             "scatter_data": scatter_data,
         }
+        
         serializer = CriticalityVsRiskSerializer(data)
         return Response({"success": True, "data": serializer.data, "message": "Risk analysis retrieved successfully"})
 
@@ -53,29 +80,53 @@ class RiskDistributionView(APIView):
 
     def get(self, request):
         user_id = request.user.id
-        employee_profile = EmployeeProfile.objects.filter(manager=user_id)
+        
+        # Single aggregation query for all risk distribution metrics
+        risk_stats = EmployeeProfile.objects.filter(manager=user_id).aggregate(
+            # Mental Health distribution
+            mental_health_high=Count('id', filter=Q(mental_health='High')),
+            mental_health_medium=Count('id', filter=Q(mental_health='Medium')),
+            mental_health_low=Count('id', filter=Q(mental_health='Low')),
+            
+            # Motivation distribution
+            motivation_high=Count('id', filter=Q(motivation_factor='High')),
+            motivation_medium=Count('id', filter=Q(motivation_factor='Medium')),
+            motivation_low=Count('id', filter=Q(motivation_factor='Low')),
+            
+            # Career opportunities distribution
+            career_high=Count('id', filter=Q(career_opportunities='High')),
+            career_medium=Count('id', filter=Q(career_opportunities='Medium')),
+            career_low=Count('id', filter=Q(career_opportunities='Low')),
+            
+            # Personal factors distribution
+            personal_high=Count('id', filter=Q(personal_reason='High')),
+            personal_medium=Count('id', filter=Q(personal_reason='Medium')),
+            personal_low=Count('id', filter=Q(personal_reason='Low'))
+        )
+        
         data = {
             "mental_health": {
-                "high": employee_profile.filter(mental_health='High').count(), 
-                "medium": employee_profile.filter(mental_health='Medium').count(), 
-                "low": employee_profile.filter(mental_health='Low').count()
+                "high": risk_stats['mental_health_high'],
+                "medium": risk_stats['mental_health_medium'],
+                "low": risk_stats['mental_health_low']
             },
             "motivation": {
-                "high": employee_profile.filter(motivation_factor='High').count(), 
-                "medium": employee_profile.filter(motivation_factor='Medium').count(), 
-                "low": employee_profile.filter(motivation_factor='Low').count()
+                "high": risk_stats['motivation_high'],
+                "medium": risk_stats['motivation_medium'],
+                "low": risk_stats['motivation_low']
             },
             "career_opportunities": {
-                "high": employee_profile.filter(career_opportunities='High').count(), 
-                "medium": employee_profile.filter(career_opportunities='Medium').count(), 
-                "low": employee_profile.filter(career_opportunities='Low').count()
+                "high": risk_stats['career_high'],
+                "medium": risk_stats['career_medium'],
+                "low": risk_stats['career_low']
             },
             "personal_factors": {
-                "high": employee_profile.filter(personal_reason='High').count(), 
-                "medium": employee_profile.filter(personal_reason='Medium').count(), 
-                "low": employee_profile.filter(personal_reason='Low').count()
+                "high": risk_stats['personal_high'],
+                "medium": risk_stats['personal_medium'],
+                "low": risk_stats['personal_low']
             },
         }
+        
         serializer = RiskDistributionSerializer(data)
         return Response({"success": True, "data": serializer.data, "message": "Risk distribution retrieved successfully"})
 
@@ -104,33 +155,17 @@ class CriticalityMetricsAPIView(APIView):
             )
             
             # Calculate metrics based on user's data
-            mental_health_risk = employee_profile.mental_health
-            attrition_risk = employee_profile.suggested_risk
+            mental_health = self._calculate_mental_health_score(employee_profile)
+            attrition_risk = self._calculate_attrition_risk_score(employee_profile)
             
-            # Get projects at risk (high criticality projects)
-            projects_at_risk = ProjectAllocation.objects.filter(
-                employee=user,
-                is_active=True,
-                criticality='High'
-            ).count()
-            
-            # Calculate average utilization using existing relationship
-            active_allocations = user.employee_allocations.filter(is_active=True)
-            avg_utilization = active_allocations.aggregate(
-                avg=Avg('allocation_percentage')
-            )['avg'] or 0
-            
-            # Calculate overall score based on risk factors
-            overall_score = self._calculate_overall_score(employee_profile, avg_utilization)
+            # Calculate project health score
+            project_health = self._calculate_project_health(user)
             
             # Prepare data for serialization
             metrics_data = {
-                'mental_health_risk': mental_health_risk,
+                'mental_health': mental_health,
                 'attrition_risk': attrition_risk,
-                'projects_at_risk': projects_at_risk,
-                'avg_utilization': round(avg_utilization, 1),
-                'overall_score': overall_score,
-                'last_updated': employee_profile.updated_at
+                'project_health': project_health
             }
             
             # Serialize the data
@@ -190,6 +225,138 @@ class CriticalityMetricsAPIView(APIView):
         )
         
         return round(total_score, 1)
+    
+    def _calculate_mental_health_score(self, employee_profile):
+        """
+        Calculate mental health score as percentage (0-100)
+        Higher score means better mental health
+        """
+        # Convert text risk level to score (inverted - lower risk = higher score)
+        risk_scores = {'High': 25, 'Medium': 50, 'Low': 75}
+        base_score = risk_scores.get(employee_profile.mental_health, 50)
+        
+        # Consider other related factors for a more comprehensive score
+        motivation_score = risk_scores.get(employee_profile.motivation_factor, 50)
+        career_score = risk_scores.get(employee_profile.career_opportunities, 50)
+        personal_score = risk_scores.get(employee_profile.personal_reason, 50)
+        
+        # Weighted calculation with mental health as primary factor
+        total_score = (
+            base_score * 0.5 +  # Mental health is 50% of the score
+            motivation_score * 0.2 +
+            career_score * 0.2 +
+            personal_score * 0.1
+        )
+        
+        return round(max(0, min(100, total_score)), 1)
+    
+    def _calculate_attrition_risk_score(self, employee_profile):
+        """
+        Calculate attrition risk score as percentage (0-100)
+        Higher score means lower attrition risk (better retention)
+        """
+        # Convert suggested risk to score (inverted - lower risk = higher score)
+        risk_scores = {'High': 20, 'Medium': 50, 'Low': 80}
+        base_score = risk_scores.get(employee_profile.suggested_risk, 50)
+        
+        # Consider manager assessment as additional factor
+        manager_score = risk_scores.get(employee_profile.manager_assessment_risk, 50)
+        
+        # Consider other risk factors
+        mental_health_score = risk_scores.get(employee_profile.mental_health, 50)
+        motivation_score = risk_scores.get(employee_profile.motivation_factor, 50)
+        career_score = risk_scores.get(employee_profile.career_opportunities, 50)
+        
+        # Weighted calculation with suggested risk as primary factor
+        total_score = (
+            base_score * 0.4 +  # Suggested risk is 40% of the score
+            manager_score * 0.3 +  # Manager assessment is 30%
+            mental_health_score * 0.1 +
+            motivation_score * 0.1 +
+            career_score * 0.1
+        )
+        
+        return round(max(0, min(100, total_score)), 1)
+    
+    def _calculate_project_health(self, user):
+        """
+        Calculate project health score based on project factors
+        Higher score means better project health
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Get user's active project allocations
+        active_allocations = user.employee_allocations.filter(is_active=True)
+        
+        if not active_allocations.exists():
+            return 75.0  # Neutral score if no active projects
+        
+        total_health_score = 0
+        total_weight = 0
+        
+        for allocation in active_allocations:
+            project = allocation.project
+            weight = allocation.allocation_percentage / 100.0  # Convert to 0-1 scale
+            
+            # Project criticality score (inverted - lower criticality = better health)
+            criticality_scores = {'High': 30, 'Medium': 60, 'Low': 90}
+            criticality_score = criticality_scores.get(allocation.criticality, 60)
+            
+            # Project timeline health (based on time remaining vs total duration)
+            timeline_score = 75  # Default neutral score
+            if allocation.end_date:
+                today = timezone.now().date()
+                if allocation.end_date >= today:
+                    total_duration = (allocation.end_date - allocation.start_date).days
+                    remaining_days = (allocation.end_date - today).days
+                    
+                    if total_duration > 0:
+                        progress_ratio = 1 - (remaining_days / total_duration)
+                        # Better score for projects that are on track (30-80% complete)
+                        if 0.3 <= progress_ratio <= 0.8:
+                            timeline_score = 85
+                        elif 0.1 <= progress_ratio < 0.3 or 0.8 < progress_ratio <= 0.95:
+                            timeline_score = 70
+                        elif progress_ratio > 0.95:
+                            timeline_score = 50  # Overdue or very close to deadline
+                        else:
+                            timeline_score = 60  # Just started
+                else:
+                    timeline_score = 40  # Overdue
+            
+            # Project status score
+            status_score = 80 if project.status == 'Active' else 40
+            
+            # Allocation health (optimal allocation around 60-80%)
+            allocation_health = 75  # Default
+            if 60 <= allocation.allocation_percentage <= 80:
+                allocation_health = 85
+            elif 40 <= allocation.allocation_percentage < 60 or 80 < allocation.allocation_percentage <= 100:
+                allocation_health = 70
+            elif allocation.allocation_percentage < 40:
+                allocation_health = 60
+            else:  # > 100%
+                allocation_health = 45
+            
+            # Weighted project health score
+            project_health = (
+                criticality_score * 0.3 +
+                timeline_score * 0.3 +
+                status_score * 0.2 +
+                allocation_health * 0.2
+            )
+            
+            total_health_score += project_health * weight
+            total_weight += weight
+        
+        # Calculate weighted average
+        if total_weight > 0:
+            final_score = total_health_score / total_weight
+        else:
+            final_score = 75.0
+        
+        return round(max(0, min(100, final_score)), 1)
 
 
 class CriticalityTrendsAPIView(APIView):

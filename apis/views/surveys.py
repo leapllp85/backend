@@ -2,12 +2,18 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from ..models import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer, EmployeeProfile, ActionItem
 from ..serializers import SurveySerializer, SurveyQuestionSerializer, SurveyResponseSerializer
 from ..permissions import IsManager, IsManagerOrAssociate, CanAccessTeamData
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 
 class SurveyListAPIView(APIView):
@@ -25,11 +31,23 @@ class SurveyListAPIView(APIView):
                 'error': 'Employee profile not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
+        # Get search query parameter
+        search_query = request.query_params.get('search', '').strip()
+        
         # Get active surveys
         now = timezone.now()
         surveys = Survey.objects.filter(
             status__in=['active', 'closed']
         ).prefetch_related('questions').select_related('created_by')
+        
+        # Apply search filter if provided
+        if search_query:
+            surveys = surveys.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(survey_type__icontains=search_query) |
+                Q(target_audience__icontains=search_query)
+            )
         
         # Filter based on target audience and user role
         available_surveys = []
@@ -90,8 +108,12 @@ class SurveyListAPIView(APIView):
             x['days_remaining'] if x['days_remaining'] is not None else 999  # Soonest deadline first
         ))
         
-        return Response({
-            'surveys': survey_data,
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_surveys = paginator.paginate_queryset(survey_data, request)
+        
+        return paginator.get_paginated_response({
+            'surveys': paginated_surveys,
             'summary': {
                 'total_available': len(available_surveys),
                 'team_surveys': len(team_surveys),
@@ -104,7 +126,9 @@ class SurveyListAPIView(APIView):
                 'username': user.username,
                 'role': user_profile.role,
                 'manager': f"{user_profile.manager.first_name} {user_profile.manager.last_name}" if user_profile.manager else None
-            }
+            },
+            'search_query': search_query if search_query else None,
+            'total_results': len(survey_data)
         })
 
 
@@ -431,8 +455,12 @@ class ManagerSurveyPublishAPIView(APIView):
             }
             survey_data.append(survey_info)
         
-        return Response({
-            'surveys': survey_data,
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_surveys = paginator.paginate_queryset(survey_data, request)
+        
+        return paginator.get_paginated_response({
+            'surveys': paginated_surveys,
             'summary': {
                 'total_published': len(survey_data),
                 'active_surveys': len([s for s in survey_data if s['status'] == 'active']),
@@ -510,8 +538,12 @@ class SurveyManagementAPIView(APIView):
             }
             survey_data.append(survey_info)
         
-        return Response({
-            'surveys': survey_data,
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_surveys = paginator.paginate_queryset(survey_data, request)
+        
+        return paginator.get_paginated_response({
+            'surveys': paginated_surveys,
             'total_surveys': len(survey_data)
         })
     

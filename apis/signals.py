@@ -1,8 +1,9 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import User
+from django.core.cache import caches
 from .models import (
-    EmployeeProfile, Project, Survey, Course, ActionItem, KnowledgeBase
+    EmployeeProfile, Project, Survey, Course, ActionItem, KnowledgeBase, ProjectAllocation
 )
 from .services.rag_service import RAGService
 import logging
@@ -113,6 +114,7 @@ def update_employee_knowledge_base(sender, instance, created, **kwargs):
         
     except Exception as e:
         logger.error(f"Error updating knowledge base for employee {instance.user.id}: {e}")
+    
 
 
 @receiver(post_delete, sender=EmployeeProfile)
@@ -128,6 +130,7 @@ def delete_employee_knowledge_base(sender, instance, **kwargs):
         
     except Exception as e:
         logger.error(f"Error removing employee {instance.user.id} from knowledge base: {e}")
+    
 
 
 @receiver(post_save, sender=Survey)
@@ -324,3 +327,43 @@ def bulk_update_knowledge_base():
     except Exception as e:
         logger.error(f"Error in bulk knowledge base update: {e}")
         return {'errors': 1, 'success': 0}
+
+
+# Cache invalidation signals for project allocations
+@receiver(post_save, sender=ProjectAllocation)
+def invalidate_project_allocation_cache(sender, instance, created, **kwargs):
+    """Handle project allocation creation or update"""
+    pass
+
+
+@receiver(post_delete, sender=ProjectAllocation)
+def invalidate_project_allocation_delete_cache(sender, instance, **kwargs):
+    """Handle project allocation deletion"""
+    pass
+
+
+# Project signals
+@receiver(post_save, sender=Project)
+def handle_project_save(sender, instance, created, **kwargs):
+    """Handle project creation or update"""
+    pass
+
+
+@receiver(post_delete, sender=Project)
+def handle_project_delete(sender, instance, **kwargs):
+    """Handle project deletion"""
+    pass
+
+
+# User model changes
+@receiver(post_save, sender=User)
+def handle_user_save(sender, instance, created, **kwargs):
+    """Handle user profile updates"""
+    pass
+
+
+
+
+def invalidate_all_team_caches():
+    """Legacy function - no longer needed"""
+    pass

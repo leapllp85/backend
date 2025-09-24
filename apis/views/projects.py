@@ -3,11 +3,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from ..models import Project, EmployeeProfile, ProjectAllocation
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.db.models import Q, Count
 from ..serializers import ProjectSerializer, MyProjectsSerializer
 from ..permissions import IsManagerOrAssociate, IsManager, CanAccessTeamData
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class ProjectAPIView(APIView):
     """General project CRUD API - Available to all authenticated users"""
@@ -37,17 +43,40 @@ class ProjectAPIView(APIView):
                 'error': 'Employee profile not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
+        # Get search query parameter
+        search_query = request.query_params.get('search', '').strip()
+        
         # return projects assigned to user
-        projects = user.projects.all()
-        print(projects)
-        serializer = self.serializer_class(projects, many=True)
-        return Response({
+        team_members = User.objects.filter(employee_profile__manager=user)
+        projects = Project.objects.filter(
+            project_allocations__employee__in=team_members
+        ).distinct()
+        
+        # Apply search filter if provided
+        if search_query:
+            projects = projects.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(criticality__icontains=search_query) |
+                Q(status__icontains=search_query)
+            )
+        
+        projects = projects.order_by('-id')
+        
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_projects = paginator.paginate_queryset(projects, request)
+        serializer = self.serializer_class(paginated_projects, many=True)
+        
+        return paginator.get_paginated_response({
             'projects': serializer.data,
             'user_info': {
                 'name': f"{user.first_name} {user.last_name}",
                 'role': user_profile.role,
                 'is_manager': user_profile.is_manager
-            }
+            },
+            'search_query': search_query if search_query else None,
+            'total_results': projects.count()
         })
 
     def post(self, request):
@@ -169,48 +198,55 @@ class MyProjectsAPIView(APIView):
     permission_classes = [IsAuthenticated, IsManagerOrAssociate]
     
     def get(self, request):
-        """Get projects assigned to the current user"""
+        """Get projects assigned to the current user's team using aggregations"""
         user = request.user
         
         try:
             user_profile = user.employee_profile
         except EmployeeProfile.DoesNotExist:
-            return Response({
-                'error': 'Employee profile not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Employee profile not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get projects where user has active allocations
-        active_allocations = ProjectAllocation.objects.filter(
-            employee=user,
-            is_active=True
-        ).select_related('project')
+        # Get team members count in single query
+        team_stats = User.objects.filter(employee_profile__manager=user).aggregate(
+            team_size=Count('id')
+        )
         
-        projects = [allocation.project for allocation in active_allocations]
+        # Get projects through allocations with aggregated summary stats
+        projects_queryset = Project.objects.filter(
+            project_allocations__employee__employee_profile__manager=user,
+            project_allocations__is_active=True
+        ).distinct().order_by('-id')
         
-        # Use custom serializer with allocation info
-        serializer = MyProjectsSerializer(projects, many=True, context={'user': user})
+        # Calculate summary statistics using aggregation
+        summary_stats = projects_queryset.aggregate(
+            total_projects=Count('id'),
+            active_projects=Count('id', filter=Q(status='Active')),
+            completed_projects=Count('id', filter=Q(status='Completed')),
+            high_priority_projects=Count('id', filter=Q(criticality='High'))
+        )
         
-        # Calculate summary statistics
-        total_allocation = sum(allocation.allocation_percentage for allocation in active_allocations)
-        project_count = len(projects)
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_projects = paginator.paginate_queryset(projects_queryset, request)
+        serializer = MyProjectsSerializer(paginated_projects, many=True, context={'user': user})
         
-        # Group by criticality
-        criticality_breakdown = {'High': 0, 'Medium': 0, 'Low': 0}
-        for project in projects:
-            criticality_breakdown[project.criticality] += 1
+        total_projects = summary_stats['total_projects']
+        completion_rate = round((summary_stats['completed_projects'] / total_projects * 100), 1) if total_projects > 0 else 0
         
-        return Response({
+        return paginator.get_paginated_response({
             'projects': serializer.data,
             'summary': {
-                'total_projects': project_count,
-                'total_allocation': total_allocation,
-                'available_capacity': 100 - total_allocation,
-                'criticality_breakdown': criticality_breakdown
+                'total_projects': total_projects,
+                'active_projects': summary_stats['active_projects'],
+                'completed_projects': summary_stats['completed_projects'],
+                'high_priority_projects': summary_stats['high_priority_projects'],
+                'completion_rate': completion_rate
             },
             'user_info': {
                 'name': f"{user.first_name} {user.last_name}",
                 'role': user_profile.role,
-                'manager': f"{user_profile.manager.first_name} {user_profile.manager.last_name}" if user_profile.manager else None
+                'is_manager': user_profile.is_manager,
+                'team_size': team_stats['team_size']
             }
         })
 
@@ -238,7 +274,7 @@ class TeamProjectsAPIView(APIView):
             team_projects = Project.objects.filter(
                 project_allocations__employee__in=team_members,
                 project_allocations__is_active=True
-            ).distinct().prefetch_related('project_allocations__employee')
+            ).distinct().prefetch_related('project_allocations__employee').order_by('-id')
             scope = 'team'
         else:
             # Associates see only their own projects
@@ -246,11 +282,15 @@ class TeamProjectsAPIView(APIView):
             team_projects = Project.objects.filter(
                 project_allocations__employee=user,
                 project_allocations__is_active=True
-            ).distinct().prefetch_related('project_allocations__employee')
+            ).distinct().prefetch_related('project_allocations__employee').order_by('-id')
             scope = 'personal'
         
+        # Apply pagination to projects
+        paginator = StandardResultsSetPagination()
+        paginated_projects = paginator.paginate_queryset(team_projects, request)
+        
         projects_data = []
-        for project in team_projects:
+        for project in paginated_projects:
             # Get team member allocations for this project
             team_allocations = project.project_allocations.filter(
                 employee__in=team_members,
@@ -287,7 +327,7 @@ class TeamProjectsAPIView(APIView):
         active_projects = len([p for p in projects_data if p['status'] == 'Active'])
         high_criticality = len([p for p in projects_data if p['criticality'] == 'High'])
         
-        return Response({
+        return paginator.get_paginated_response({
             'projects': projects_data,
             'summary': {
                 'total_projects': total_projects,

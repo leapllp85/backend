@@ -19,9 +19,10 @@ from django.urls import path, include
 from apis.views.health import HealthCheckView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include('authapi.urls')),
-    path('api/v1/', include('apis.urls')),
+    path("admin/", admin.site.urls),
+    path("api/", include("apis.urls")),
+    path("api/v1/", include("apis.urls")),  # Add v1 prefix for API versioning
+    path("auth/", include("authapi.urls")),
     path('api/v1/health/', HealthCheckView.as_view(), name='health_check'),
     path('health/', HealthCheckView.as_view(), name='health_check_root'),
 ]

@@ -114,6 +114,11 @@ class EmployeeProfile(models.Model):
         """Get employee criticality"""
         project_allocations = ProjectAllocation.objects.filter(employee=self.user).values('criticality').annotate(count=Count('criticality'))
         criticality_values = [allocation['count'] * CRITICALITY_MAP.get(allocation['criticality'], 2) for allocation in project_allocations]
+        
+        # Handle case where employee has no project allocations
+        if not criticality_values:
+            return 'Low'
+            
         total = sum(criticality_values)
         average = total / len(criticality_values)
         

@@ -16,42 +16,38 @@ class RiskDistributionSerializer(serializers.Serializer):
 
 class CriticalityMetricsSerializer(serializers.Serializer):
     """Serializer for criticality metrics response"""
-    mental_health_risk = serializers.ChoiceField(
-        choices=CRITICALITY_CHOICES,
-        help_text="Mental health risk level"
-    )
-    attrition_risk = serializers.ChoiceField(
-        choices=CRITICALITY_CHOICES,
-        help_text="Attrition risk level"
-    )
-    projects_at_risk = serializers.IntegerField(
-        min_value=0,
-        help_text="Number of high-criticality projects"
-    )
-    avg_utilization = serializers.FloatField(
-        min_value=0.0,
-        max_value=200.0,  # Allow for over-allocation scenarios
-        help_text="Average utilization percentage"
-    )
-    overall_score = serializers.FloatField(
+    mental_health = serializers.FloatField(
         min_value=0.0,
         max_value=100.0,
-        help_text="Overall criticality score"
+        help_text="Mental health score percentage"
     )
-    last_updated = serializers.DateTimeField(
-        help_text="Last update timestamp"
+    attrition_risk = serializers.FloatField(
+        min_value=0.0,
+        max_value=100.0,
+        help_text="Attrition risk score percentage"
+    )
+    project_health = serializers.FloatField(
+        min_value=0.0,
+        max_value=100.0,
+        help_text="Overall project health score"
     )
 
-    def validate_overall_score(self, value):
-        """Validate overall score is within valid range"""
+    def validate_mental_health(self, value):
+        """Validate mental health score is within valid range"""
         if value < 0 or value > 100:
-            raise serializers.ValidationError("Overall score must be between 0 and 100")
+            raise serializers.ValidationError("Mental health score must be between 0 and 100")
         return round(value, 1)
 
-    def validate_avg_utilization(self, value):
-        """Validate utilization is within reasonable bounds"""
-        if value < 0:
-            raise serializers.ValidationError("Utilization cannot be negative")
+    def validate_attrition_risk(self, value):
+        """Validate attrition risk score is within valid range"""
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Attrition risk score must be between 0 and 100")
+        return round(value, 1)
+
+    def validate_project_health(self, value):
+        """Validate project health is within valid range"""
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Project health must be between 0 and 100")
         return round(value, 1)
 
 

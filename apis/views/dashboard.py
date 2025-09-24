@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth.models import User
-from django.db.models import Avg, Count, Q, F, Sum
+from django.db.models import Avg, Count, Q, F, Sum, Case, When, FloatField
 from ..models import EmployeeProfile, ProjectAllocation, Project
 from ..permissions import CanAccessTeamData
 from collections import Counter
@@ -14,124 +14,117 @@ class DashboardQuickDataAPIView(APIView):
     permission_classes = [IsAuthenticated, CanAccessTeamData]
     
     def get(self, request):
-        """Get all dashboard metrics in one call"""
+        """Get quick dashboard data using database aggregations"""
+        user = request.user
         
-        # Get all employee profiles
-        profiles = EmployeeProfile.objects.select_related('user').all()
-        total_members = profiles.count()
+        try:
+            user_profile = user.employee_profile
+        except EmployeeProfile.DoesNotExist:
+            return Response({'error': 'Employee profile not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        if total_members == 0:
-            return Response({
-                'team_attrition_risk': 0,
-                'team_mental_health': 0,
-                'avg_utilization': 0,
-                'top_talent': [],
-                'average_age': 0,
-                'total_team_members': 0
-            })
-        
-        # 1. Team Attrition Risk (percentage of high-risk employees)
-        high_risk_count = profiles.filter(manager_assessment_risk='High').count()
-        team_attrition_risk = round((high_risk_count / total_members) * 100, 1)
-        
-        # 2. Team Mental Health (average mental health score)
-        risk_scores = {'High': 3, 'Medium': 2, 'Low': 1}
-        mh_scores = [risk_scores.get(p.mental_health, 2) for p in profiles]
-        avg_mh_score = round(sum(mh_scores) / len(mh_scores), 2)
-        
-        # Convert back to percentage (3=100%, 2=66%, 1=33%)
-        team_mental_health = round((avg_mh_score / 3) * 100, 1)
-        
-        # 3. Average Utilization of Team Members
-        active_allocations = ProjectAllocation.objects.filter(is_active=True)
-        if active_allocations.exists():
-            total_allocation = active_allocations.aggregate(
-                total=Sum('allocation_percentage')
-            )['total'] or 0
-            active_employees = active_allocations.values('employee').distinct().count()
-            avg_utilization = round(total_allocation / active_employees if active_employees > 0 else 0, 1)
+        # Get team filter based on role
+        if user_profile.is_manager:
+            team_filter = Q(employee_profile__manager=user)
+            profile_filter = Q(manager=user)
         else:
-            avg_utilization = 0
+            team_filter = Q(id=user.id)
+            profile_filter = Q(user=user)
         
-        # 4. Top Talent (Top 3 employees from project criticality)
+        # Single aggregation query for team stats
+        from ..models import ProjectAllocation
+        
+        team_stats = User.objects.filter(team_filter).aggregate(
+            total_members=Count('id'),
+            avg_utilization=Avg(
+                'employee_allocations__allocation_percentage',
+                filter=Q(employee_allocations__is_active=True)
+            )
+        )
+        
+        # Single aggregation query for profile-based metrics
+        profile_stats = EmployeeProfile.objects.filter(profile_filter).aggregate(
+            total_profiles=Count('id'),
+            high_risk_count=Count('id', filter=Q(manager_assessment_risk='High')),
+            mental_health_avg=Avg(
+                Case(
+                    When(mental_health='High', then=3),
+                    When(mental_health='Medium', then=2),
+                    When(mental_health='Low', then=1),
+                    default=2,
+                    output_field=FloatField()
+                )
+            ),
+            average_age=Avg('age')
+        )
+        
+        # Calculate derived metrics
+        total_profiles = profile_stats['total_profiles'] or 1
+        team_attrition_risk = round((profile_stats['high_risk_count'] / total_profiles) * 100, 1)
+        team_mental_health = round((profile_stats['mental_health_avg'] or 2) * 33.33, 1)
+        avg_utilization = team_stats['avg_utilization'] or 0
+        
+        # Get top talent using optimized method
         top_talent = self.get_top_talent()
-        
-        # 5. Average Age of Team
-        ages = [p.age for p in profiles if p.age]
-        average_age = round(sum(ages) / len(ages) if ages else 0, 1)
         
         return Response({
             'team_attrition_risk': team_attrition_risk,
             'team_mental_health': team_mental_health,
-            'avg_utilization': avg_utilization,
+            'avg_utilization': round(avg_utilization, 1),
             'top_talent': top_talent,
-            'average_age': average_age,
-            'total_team_members': total_members
+            'average_age': round(profile_stats['average_age'] or 0, 1),
+            'total_team_members': team_stats['total_members']
         })
     
     def get_top_talent(self):
-        """Get top 3 employees based on project criticality"""
-        # Get employees with their highest project criticality
-        employees_with_criticality = []
-        
+        """Get top 3 employees based on performance metrics using database aggregation"""
         user = self.request.user
         user_profile = user.employee_profile
         
-        # Get relevant users based on role
+        # Get team filter based on role
         if user_profile.is_manager:
-            team_members = User.objects.filter(employee_profile__manager=user)
-            scope = 'team'
+            team_filter = Q(employee_profile__manager=user)
         else:
-            team_members = User.objects.filter(id=user.id)
-            scope = 'personal'
+            team_filter = Q(id=user.id)
         
-        users = team_members.prefetch_related('employee_allocations__project')
+        # Use database aggregation to calculate performance scores
+        from django.db.models import Case, When, FloatField, F
         
-        criticality_scores = {'High': 3, 'Medium': 2, 'Low': 1}
+        top_employees = User.objects.filter(team_filter).select_related('employee_profile').annotate(
+            mental_health_score=Case(
+                When(employee_profile__mental_health='High', then=3),
+                When(employee_profile__mental_health='Medium', then=2),
+                When(employee_profile__mental_health='Low', then=1),
+                default=2,
+                output_field=FloatField()
+            ),
+            motivation_score=Case(
+                When(employee_profile__motivation_factor='High', then=3),
+                When(employee_profile__motivation_factor='Medium', then=2),
+                When(employee_profile__motivation_factor='Low', then=1),
+                default=2,
+                output_field=FloatField()
+            ),
+            career_score=Case(
+                When(employee_profile__career_opportunities='High', then=3),
+                When(employee_profile__career_opportunities='Medium', then=2),
+                When(employee_profile__career_opportunities='Low', then=1),
+                default=2,
+                output_field=FloatField()
+            ),
+            performance_score=(F('mental_health_score') + F('motivation_score') + F('career_score')) / 3
+        ).order_by('-performance_score')[:3]
         
-        for user in users:
-            active_allocations = user.employee_allocations.filter(is_active=True)
-            if active_allocations.exists():
-                # Get highest criticality from active projects
-                max_criticality = max(
-                    criticality_scores.get(alloc.project.criticality, 1) 
-                    for alloc in active_allocations
-                )
-                criticality_label = next(
-                    label for label, score in criticality_scores.items() 
-                    if score == max_criticality
-                )
-            else:
-                max_criticality = 1
-                criticality_label = 'Low'
-            
-            employees_with_criticality.append({
-                'user_info': {
-                    'name': f"{user.first_name} {user.last_name}",
-                    'role': user_profile.role,
-                    'is_manager': user_profile.is_manager,
-                    'scope': scope,
-                    'data_size': team_members.count()
-                },
-                'id': user.id,
-                'username': user.username,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'age': user.employee_profile.age,
-                'mental_health': user.employee_profile.mental_health,
-                'criticality_score': max_criticality,
-                'criticality_label': criticality_label,
-                'profile_pic': getattr(user.employee_profile, 'profile_pic', None)
-            })
-        
-        # Sort by criticality score and return top 3
-        top_employees = sorted(
-            employees_with_criticality, 
-            key=lambda x: x['criticality_score'], 
-            reverse=True
-        )[:3]
-        
-        return top_employees
+        # Convert to list with required fields
+        return [{
+            'id': emp.id,
+            'username': emp.username,
+            'first_name': emp.first_name,
+            'last_name': emp.last_name,
+            'age': emp.employee_profile.age,
+            'mental_health': emp.employee_profile.mental_health,
+            'performance_score': round(float(emp.performance_score), 2),
+            'profile_pic': getattr(emp.employee_profile, 'profile_pic', None)
+        } for emp in top_employees]
 
 
 class TeamAttritionRiskAPIView(APIView):

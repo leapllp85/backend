@@ -96,10 +96,10 @@ class Survey(models.Model):
             return User.objects.filter(employee_profile__manager=self.created_by)
         
         elif self.target_audience == 'department':
-            # Assuming department is stored in a field - adjust as needed
+            # Use employee_designation from Profile model as department equivalent
             if self.target_departments:
                 return User.objects.filter(
-                    employee_profile__department__in=self.target_departments
+                    profile__employee_designation__name__in=self.target_departments
                 )
         
         elif self.target_audience == 'role':
@@ -113,9 +113,49 @@ class Survey(models.Model):
         
         elif self.target_audience == 'risk_level':
             if self.target_risk_levels:
-                return User.objects.filter(
-                    employee_profile__suggested_risk__in=self.target_risk_levels
-                )
+                # Since suggested_risk is a property, we need to filter using the actual fields
+                # that make up the risk calculation: mental_health, motivation_factor, 
+                # career_opportunities, personal_reason
+                from django.db.models import Q, Case, When, FloatField, F
+                from django.db.models.functions import Cast
+                
+                # Create conditions for each risk level
+                risk_conditions = Q()
+                
+                for risk_level in self.target_risk_levels:
+                    if risk_level == 'High':
+                        # Average >= 2.5 means High risk
+                        risk_conditions |= Q(
+                            employee_profile__mental_health='High'
+                        ) | Q(
+                            employee_profile__motivation_factor='High'
+                        ) | Q(
+                            employee_profile__career_opportunities='High'
+                        ) | Q(
+                            employee_profile__personal_reason='High'
+                        )
+                    elif risk_level == 'Medium':
+                        # This is more complex - need users who don't qualify for High or Low
+                        # For simplicity, include users with at least one Medium risk factor
+                        risk_conditions |= Q(
+                            employee_profile__mental_health='Medium'
+                        ) | Q(
+                            employee_profile__motivation_factor='Medium'
+                        ) | Q(
+                            employee_profile__career_opportunities='Medium'
+                        ) | Q(
+                            employee_profile__personal_reason='Medium'
+                        )
+                    elif risk_level == 'Low':
+                        # All factors must be Low for overall Low risk
+                        risk_conditions |= Q(
+                            employee_profile__mental_health='Low',
+                            employee_profile__motivation_factor='Low',
+                            employee_profile__career_opportunities='Low',
+                            employee_profile__personal_reason='Low'
+                        )
+                
+                return User.objects.filter(risk_conditions)
         
         elif self.target_audience == 'custom':
             return self.target_employees.all()

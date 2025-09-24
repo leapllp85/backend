@@ -2,12 +2,18 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Q
 from ..models import ActionItem, Survey, SurveyResponse, EmployeeProfile
 from ..serializers import ActionItemSerializer
 from ..permissions import IsManagerOrAssociate, IsManager
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class ActionItemAPIView(APIView):
     """Enhanced Action Items API with survey integration"""
@@ -30,7 +36,7 @@ class ActionItemAPIView(APIView):
             target_user = user
         
         # Get regular action items
-        action_items_query = ActionItem.objects.filter(assigned_to=target_user)
+        action_items_query = ActionItem.objects.filter(assigned_to=target_user).order_by('-id')
         if status_filter:
             action_items_query = action_items_query.filter(status=status_filter)
         
@@ -42,9 +48,13 @@ class ActionItemAPIView(APIView):
         # Combine both types of action items
         all_action_items = action_items + survey_action_items
         
+        # Apply pagination
+        paginator = StandardResultsSetPagination()
+        paginated_action_items = paginator.paginate_queryset(all_action_items, request)
+        
         # Serialize and return
-        serializer = self.serializer_class(all_action_items, many=True)
-        return Response({
+        serializer = self.serializer_class(paginated_action_items, many=True)
+        return paginator.get_paginated_response({
             'action_items': serializer.data,
             'summary': {
                 'total_items': len(all_action_items),
