@@ -21,13 +21,18 @@ CRITICALITY_CHOICES = [
     ('Low', 'Low')
 ]
 
+PRIMARY_TRIGGER_CHOICES = [
+    ('MH', 'Mental Health'),
+    ('MT', 'Motivation Factor'),
+    ('CO', 'Career Opportunities'),
+    ('PR', 'Personal Reason')
+]
+
+class Trigger(models.Model):
+    name = models.CharField(max_length=50, primary_key=True)
+    primary_trigger = models.CharField(max_length=2, choices=PRIMARY_TRIGGER_CHOICES, blank=True, null=True)
+
 class EmployeeProfile(models.Model):
-    TRIGGER_CHOICES = [
-        ('MH', 'Mental Health'),
-        ('MT', 'Motivation Factor'),
-        ('CO', 'Career Opportunities'),
-        ('PR', 'Personal Reason')
-    ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
@@ -35,18 +40,23 @@ class EmployeeProfile(models.Model):
                                help_text="Direct manager of this employee")
     profile_pic = models.URLField(blank=True, null=True)
     age = models.PositiveIntegerField(validators=[MinValueValidator(18), MaxValueValidator(100)])
-    
+
+    talent_type = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
+    employee_project_criticality = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
+
     # Risk assessment fields
     mental_health = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
     motivation_factor = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
     career_opportunities = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
     personal_reason = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
-    manager_assessment_risk = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium')
-    
-    # Trigger fields
-    all_triggers = models.CharField(max_length=100, blank=True, 
-                                   help_text="Comma-separated trigger codes")
-    primary_trigger = models.CharField(max_length=2, choices=TRIGGER_CHOICES, blank=True, null=True)
+    manager_assessment_risk = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium') # This is the risk calculated by the manager
+    suggested_risk = models.CharField(max_length=10, choices=CRITICALITY_CHOICES, default='Medium') # This is the risk calculated by the system
+
+    # Trigger fields (All Triggers to leave company)
+    all_triggers = models.ManyToManyField(Trigger)
+
+    # Primary Trigger to leave company
+    primary_trigger = models.CharField(max_length=2, choices=PRIMARY_TRIGGER_CHOICES, blank=True, null=True) # This is the risk calculated by the manager (MH, MT, CO, PR)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -66,8 +76,7 @@ class EmployeeProfile(models.Model):
     def personal_reason_score(self):
         return CRITICALITY_MAP.get(self.personal_reason, 2)
 
-    @property
-    def suggested_risk(self):
+    def calculate_suggested_risk(self):
         """Calculate average risk from MH, MT, CO, PR"""
         risk_values = CRITICALITY_MAP
         
@@ -109,8 +118,7 @@ class EmployeeProfile(models.Model):
         """Get all team members reporting to this user"""
         return EmployeeProfile.objects.filter(manager=self.user)
 
-    @property
-    def employee_project_criticality(self):
+    def calculate_employee_project_criticality(self):
         """Get employee criticality"""
         project_allocations = ProjectAllocation.objects.filter(employee=self.user).values('criticality').annotate(count=Count('criticality'))
         criticality_values = [allocation['count'] * CRITICALITY_MAP.get(allocation['criticality'], 2) for allocation in project_allocations]
@@ -140,7 +148,11 @@ class EmployeeProfile(models.Model):
     @property
     def project_criticality(self):
         return self.user.employee_allocations.aggregate(total=Sum('allocation_percentage'))['total']
-        
+    
+    def save(self, *args, **kwargs):
+        self.employee_project_criticality = self.calculate_employee_project_criticality()
+        self.suggested_risk = self.calculate_suggested_risk()
+        return super().save(*args, **kwargs)
 
 
 class ProjectAllocation(models.Model):

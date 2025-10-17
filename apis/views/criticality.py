@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apis.permissions import IsManager
 from apis.serializers import CriticalityVsRiskSerializer, RiskDistributionSerializer
-from apis.models import EmployeeProfile
+from apis.models import EmployeeProfile, Attrition
 from rest_framework import status
 from django.db.models import Avg, Count, Q, Sum, Case, When, IntegerField, F
 from django.utils import timezone
@@ -16,8 +16,10 @@ from ..serializers import (
     CriticalityTrendSerializer,
     CriticalityTrendsInputSerializer,
     EmployeeProfileSerializer,
-    ProjectAllocationSerializer
+    ProjectAllocationSerializer,
+    AttritionSerializer
 )
+from apis.models.employees import Trigger, PRIMARY_TRIGGER_CHOICES
 
 
 
@@ -30,49 +32,71 @@ class CriticalityVsRiskView(APIView):
         # Optimized query with select_related and database aggregations
         employee_profiles = EmployeeProfile.objects.filter(
             manager=user_id
-        ).select_related('user').annotate(
-            mental_health_numeric=Case(
-                When(mental_health='High', then=3),
-                When(mental_health='Medium', then=2),
-                When(mental_health='Low', then=1),
-                default=2,
-                output_field=IntegerField()
-            ),
-            career_opportunities_numeric=Case(
-                When(career_opportunities='High', then=3),
-                When(career_opportunities='Medium', then=2),
-                When(career_opportunities='Low', then=1),
-                default=2,
-                output_field=IntegerField()
-            )
         )
+        # .select_related('user')
+        # .annotate(
+        #     mental_health_numeric=Case(
+        #         When(mental_health='High', then=3),
+        #         When(mental_health='Medium', then=2),
+        #         When(mental_health='Low', then=1),
+        #         default=2,
+        #         output_field=IntegerField()
+        #     ),
+        #     career_opportunities_numeric=Case(
+        #         When(career_opportunities='High', then=3),
+        #         When(career_opportunities='Medium', then=2),
+        #         When(career_opportunities='Low', then=1),
+        #         default=2,
+        #         output_field=IntegerField()
+        #     )
+        # )
         
         # Single aggregation query for averages
-        aggregated_data = employee_profiles.aggregate(
-            avg_mental_health=Avg('mental_health_numeric'),
-            avg_career_growth=Avg('career_opportunities_numeric'),
-            total_count=Count('id')
-        )
+        # aggregated_data = employee_profiles.aggregate(
+        #     avg_mental_health=Avg('mental_health_numeric'),
+        #     avg_career_growth=Avg('career_opportunities_numeric'),
+        #     total_count=Count('id')
+        # )
         
         # Build scatter data efficiently
-        scatter_data = [{
-            "criticality": profile.employee_project_criticality,
-            "risk": profile.suggested_risk,
-            "employee_name": f"{profile.user.first_name} {profile.user.last_name}"
-        } for profile in employee_profiles]
+        # scatter_data = [{
+        #     "criticality": profile.employee_project_criticality,
+        #     "risk": profile.suggested_risk,
+        #     "employee_name": f"{profile.user.first_name} {profile.user.last_name}"
+        # } for profile in employee_profiles]
+        graph_data_queryset = (
+            employee_profiles
+            .values(
+                'employee_project_criticality',
+                'manager_assessment_risk'
+            )
+            .annotate(
+                value=Count('id')
+            )
+        )
+
+        # Format data for your chart
+        graph_data = [
+            {
+                "label": f"Criticality: {row['employee_project_criticality']}, Risk: {row['manager_assessment_risk']}",
+                "value": row['value']
+            }
+            for row in graph_data_queryset
+        ]
+
         
         # Calculate averages from aggregated data
-        avg_mental_health = int(aggregated_data['avg_mental_health'] or 2)
-        avg_career_growth = int(aggregated_data['avg_career_growth'] or 2)
+        # avg_mental_health = int(aggregated_data['avg_mental_health'] or 2)
+        # avg_career_growth = int(aggregated_data['avg_career_growth'] or 2)
         
         data = {
-            "work_wellness": CRITICALITY_SCORE_MAP.get(avg_mental_health, "Medium"),
-            "career_growth": CRITICALITY_SCORE_MAP.get(avg_career_growth, "Medium"),
-            "scatter_data": scatter_data,
+            # "work_wellness": CRITICALITY_SCORE_MAP.get(avg_mental_health, "Medium"),
+            # "career_growth": CRITICALITY_SCORE_MAP.get(avg_career_growth, "Medium"),
+            "graph_data": graph_data,
         }
         
-        serializer = CriticalityVsRiskSerializer(data)
-        return Response({"success": True, "data": serializer.data, "message": "Risk analysis retrieved successfully"})
+        # serializer = CriticalityVsRiskSerializer(data)
+        return Response({"success": True, "data": data, "message": "Risk analysis retrieved successfully"})
 
 
 class RiskDistributionView(APIView):
@@ -544,3 +568,52 @@ class EmployeeCriticalitySummaryAPIView(APIView):
                 'success': False,
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AttritionTrendsAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    
+    def get(self, request):
+        user = request.user
+        # m: months, y: years
+        span = request.query_params.get('span', '3m')
+        print(timezone.now().month - int(span.replace('m', '')))
+        print(user.username)
+        
+        if 'm' in span:
+            attrition_data = Attrition.objects.filter(manager__username=user.username, month__gte=timezone.now().month - int(span.replace('m', '')))
+        elif 'y' in span:
+            attrition_data = Attrition.objects.filter(manager__username=user.username, year__gte=timezone.now().year - int(span.replace('y', '')))
+        
+        # Serialize the attrition data for line graph
+        serializer = AttritionSerializer(attrition_data, many=True)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+class PrimaryTriggerAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    
+    def get(self, request):
+        user = request.user
+        res = {}
+        for primary_trigger in PRIMARY_TRIGGER_CHOICES:
+            res[primary_trigger[0]] = EmployeeProfile.objects.filter(manager=user, primary_trigger=primary_trigger[0]).count()
+        return Response({
+            'success': True,
+            'data': res
+        }, status=status.HTTP_200_OK)
+
+class AllTriggerAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+    
+    def get(self, request):
+        user = request.user
+        res = {}
+        for trigger in Trigger.objects.values_list('name', flat=True).distinct():
+            res[trigger] = EmployeeProfile.objects.filter(manager=user, all_triggers__name=trigger).count()
+        return Response({
+            'success': True,
+            'data': res
+        }, status=status.HTTP_200_OK)

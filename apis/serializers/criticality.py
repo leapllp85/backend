@@ -2,6 +2,7 @@ from rest_framework import serializers
 from ..models.employees import CRITICALITY_CHOICES
 from ..serializers.main import EmployeeProfileSerializer
 from ..serializers.main import ProjectAllocationSerializer
+from ..models import Attrition
 
 class CriticalityVsRiskSerializer(serializers.Serializer):
     scatter_data = serializers.ListField(child=serializers.DictField())
@@ -220,3 +221,9 @@ class CriticalityProjectAllocationSerializer(ProjectAllocationSerializer):
             remaining = (obj.end_date - timezone.now().date()).days
             return max(0, remaining)
         return None
+
+
+class AttritionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attrition
+        fields = '__all__'

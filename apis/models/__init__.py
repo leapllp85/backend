@@ -3,6 +3,9 @@
 # Action Items
 from .action_items import ActionItem
 
+# Attrition
+from .attrition import Attrition
+
 # Projects
 from .projects import Project
 
@@ -10,7 +13,7 @@ from .projects import Project
 from .courses import Course, CourseCategory
 
 # Employees and Allocations
-from .employees import EmployeeProfile, ProjectAllocation
+from .employees import EmployeeProfile, ProjectAllocation, Trigger
 
 # Surveys
 from .surveys import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
@@ -26,6 +29,9 @@ __all__ = [
     # Action Items
     'ActionItem',
     
+    # Attrition
+    'Attrition',
+    
     # Projects
     'Project',
     
@@ -36,6 +42,7 @@ __all__ = [
     # Employees
     'EmployeeProfile',
     'ProjectAllocation',
+    'Trigger',
     
     # Surveys
     'Survey',

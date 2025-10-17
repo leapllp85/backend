@@ -34,7 +34,8 @@ from .criticality import (
     CriticalityTrendSerializer,
     CriticalityTrendsInputSerializer,
     EmployeeProfileSerializer,
-    ProjectAllocationSerializer
+    ProjectAllocationSerializer,
+    AttritionSerializer
 )
 
 __all__ = [
@@ -67,5 +68,6 @@ __all__ = [
     'CriticalityTrendSerializer',
     'CriticalityTrendsInputSerializer',
     'EmployeeProfileSerializer',
-    'ProjectAllocationSerializer'
+    'ProjectAllocationSerializer',
+    'AttritionSerializer'
 ]

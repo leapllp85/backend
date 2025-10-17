@@ -15,7 +15,7 @@ from .views.conversations import (
     ConversationShareListCreateView, add_message_to_conversation,
     remove_conversation_share, get_shared_conversations
 )
-from .views.criticality import CriticalityVsRiskView, RiskDistributionView, CriticalityMetricsAPIView, CriticalityTrendsAPIView
+from .views.criticality import CriticalityVsRiskView, RiskDistributionView, CriticalityMetricsAPIView, CriticalityTrendsAPIView, AttritionTrendsAPIView, PrimaryTriggerAPIView, AllTriggerAPIView
 
 urlpatterns = [
     # Projects - Role-based access controlled in views
@@ -89,4 +89,7 @@ urlpatterns = [
     path('criticality/risk-distribution/', RiskDistributionView.as_view(), name='risk-distribution'),
     path('criticality/metrics/', CriticalityMetricsAPIView.as_view(), name='criticality-metrics'),
     path('criticality/trends/', CriticalityTrendsAPIView.as_view(), name='criticality-trends'),
+    path('criticality/attrition/', AttritionTrendsAPIView.as_view(), name='criticality-attrition'),
+    path('criticality/primary-trigger/', PrimaryTriggerAPIView.as_view(), name='criticality-primary-trigger'),
+    path('criticality/all-trigger/', AllTriggerAPIView.as_view(), name='criticality-all-trigger'),
 ]
