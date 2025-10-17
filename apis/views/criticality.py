@@ -611,8 +611,10 @@ class AllTriggerAPIView(APIView):
     def get(self, request):
         user = request.user
         res = {}
-        for trigger in Trigger.objects.values_list('name', flat=True).distinct():
-            res[trigger] = EmployeeProfile.objects.filter(manager=user, all_triggers__name=trigger).count()
+        for primary_trigger in PRIMARY_TRIGGER_CHOICES:
+            res[primary_trigger[0]] = {}
+            for trigger in Trigger.objects.filter(primary_trigger=primary_trigger[0]).values_list('name', flat=True).distinct():
+                res[primary_trigger[0]][trigger] = EmployeeProfile.objects.filter(manager=user, primary_trigger=primary_trigger[0], all_triggers__name=trigger).count()
         return Response({
             'success': True,
             'data': res
