@@ -4,6 +4,7 @@ from .views.courses import CourseAPIView
 from .views.actionitems import ActionItemAPIView
 from .views.llm import ChatAPIView
 from .views.chat_async import ChatInitiateView, ChatResponseView, ChatStatusView
+from .views.chat_langgraph import LangGraphChatView, LangGraphAsyncChatView, LangGraphHealthView
 
 from .views.team import MyTeamAPIView, TeamAnalyticsAPIView, AttritionGraphAPIView, DistributionGraphAPIView, TeamStatsAPIView, ProjectStatsAPIView, MetricsAPIView, NotificationsAPIView, ProjectRisksAPIView
 from .views.dashboard import DashboardQuickDataAPIView, TeamAttritionRiskAPIView, TeamMentalHealthAPIView, TeamUtilizationAPIView
@@ -32,6 +33,11 @@ urlpatterns = [
     path('chat/initiate/', ChatInitiateView.as_view(), name='chat-initiate'),
     path('chat/response/<str:task_id>/', ChatResponseView.as_view(), name='chat-response'),
     path('chat/status/', ChatStatusView.as_view(), name='chat-status'),
+    
+    # LangGraph Chat System - Manager only
+    path('chat/langgraph/', LangGraphChatView.as_view(), name='langgraph-chat'),
+    path('chat/langgraph/async/', LangGraphAsyncChatView.as_view(), name='langgraph-async-chat'),
+    path('chat/langgraph/health/', LangGraphHealthView.as_view(), name='langgraph-health'),
     
     # Team Management - Access controlled by permissions
     path('my-team/', MyTeamAPIView.as_view(), name='my-team'),

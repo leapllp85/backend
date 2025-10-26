@@ -46,3 +46,17 @@ anthropic>=0.8.0
 
 # Redis for caching and background task management
 redis>=5.0.0
+
+# LangChain and LangGraph for orchestration
+langchain>=0.1.0
+langchain-postgres>=0.0.6
+langchain-anthropic>=0.1.0
+langchain-huggingface>=0.0.3
+langgraph>=0.0.40
+sentence-transformers>=2.2.2
+transformers>=4.30.0
+huggingface-hub>=0.16.0
+torch>=2.0.0
+tqdm>=4.65.0
+numpy<2.0.0
+python-dotenv>=1.0.0

@@ -98,13 +98,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'corporate_mvp',
-        'PASSWORD': 'RandomPassword1999',
-        'USER': 'leapllp112',
-        'HOST': '34.93.168.19',
+        'NAME': 'clyra',
+        'PASSWORD': 'npg_3rt0LkdHzaEM',
+        'USER': 'neondb_owner',
+        'HOST': 'ep-still-smoke-a4de54p4.us-east-1.aws.neon.tech',
         'PORT': '5432',
+        'CONN_MAX_AGE': 600,  # 10 minutes
         'OPTIONS': {
-            'options': '-c search_path=transaction'
+            'options': '-c search_path=transaction',
+            'sslmode': 'require'
         },
     }
 }
@@ -197,5 +199,22 @@ CHAT_PROCESSING_TIMEOUT = 300  # 5 minutes
 CHAT_RESPONSE_TTL = 21600  # 6 hours (was 1 hour)
 CHAT_CONTEXT_TTL = 21600  # 6 hours for database context cache
 
-# Anthropic API Key
-#
+# Environment Variables for LangChain Integration
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Database URL for LangChain (constructed from existing settings)
+DATABASE_URL = f"postgresql://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
+
+# Embedding Settings
+EMBEDDING_MODEL = "text-embedding-3-large"
+EMBEDDING_DIMENSIONS = 3072
+
+# Vector Store Settings
+PGVECTOR_COLLECTION_NAME = "knowledge_base"
+SIMILARITY_THRESHOLD = 0.5
+MAX_RETRIEVAL_DOCS = 5
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
