@@ -1,60 +1,76 @@
-# Multi-stage build for production
-FROM python:3.11-slim as builder
+# Multi-stage build for production - optimized for size
+FROM python:3.11-alpine as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        libpq-dev \
+# Install build dependencies in single layer
+RUN apk add --no-cache --virtual .build-deps \
         gcc \
         g++ \
+        musl-dev \
+        postgresql-dev \
+        linux-headers \
         cmake \
-        pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+        make \
+        pkgconfig \
+        libffi-dev \
+        openssl-dev \
+        cargo \
+        rust
 
-# Install Python dependencies
-COPY requirements.txt /tmp/
+# Install Python dependencies with optimizations
+COPY requirements-prod.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r /tmp/requirements.txt
+    && pip install --no-cache-dir --compile -r /tmp/requirements-prod.txt \
+    && find /usr/local -type d -name __pycache__ -exec rm -rf {} + \
+    && find /usr/local -type f -name "*.pyc" -delete \
+    && find /usr/local -type f -name "*.pyo" -delete \
+    && find /usr/local -name "*.dist-info" -exec rm -rf {} + \
+    && find /usr/local -name "tests" -type d -exec rm -rf {} + \
+    && find /usr/local -name "test" -type d -exec rm -rf {} +
 
-# Production stage
-FROM python:3.11-slim
+# Remove build dependencies
+RUN apk del .build-deps
+
+# Production stage - ultra-lightweight
+FROM python:3.11-alpine
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=backend.settings
 ENV DEBUG=0
+ENV PIP_NO_CACHE_DIR=1
 
-# Install runtime dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libpq5 \
-        curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN groupadd -r django && useradd -r -g django django
+# Install only essential runtime dependencies
+RUN apk add --no-cache \
+        postgresql-libs \
+        ca-certificates \
+    && addgroup -g 1000 django \
+    && adduser -D -u 1000 -G django django
 
 # Set work directory
 WORKDIR /app
 
-# Copy Python dependencies from builder stage
+# Copy Python dependencies from builder stage (selective copy)
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy project files
-COPY . /app/
+# Copy only essential files (optimized for production)
+COPY --chown=django:django requirements-prod.txt manage.py ./
+COPY --chown=django:django backend/ ./backend/
+COPY --chown=django:django apis/ ./apis/
+COPY --chown=django:django authapi/ ./authapi/
 
-# Create necessary directories
-RUN mkdir -p /app/staticfiles /app/media /app/logs
-
-# Change ownership to django user
-RUN chown -R django:django /app
+# Create necessary directories and set permissions in single layer
+RUN mkdir -p /app/staticfiles /app/media /app/logs \
+    && chown -R django:django /app \
+    && find /app -type f -name "*.pyc" -delete \
+    && find /app -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # Switch to non-root user
 USER django
@@ -65,9 +81,18 @@ RUN python manage.py collectstatic --noinput --clear
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
+# Lightweight health check (no curl dependency)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/', timeout=5)" || exit 1
 
-# Use gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "backend.wsgi:application"]
+# Use gunicorn for production with optimized settings
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "2", \
+     "--worker-class", "sync", \
+     "--timeout", "120", \
+     "--keepalive", "5", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100", \
+     "--preload", \
+     "backend.wsgi:application"]

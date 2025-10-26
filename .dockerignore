@@ -1,47 +1,36 @@
-# Python
+# Create this as .dockerignore in your backend directory to reduce image size
+
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python cache and compiled files
 __pycache__
 *.pyc
 *.pyo
 *.pyd
 .Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git
-.mypy_cache
+*.so
 .pytest_cache
-.hypothesis
+.coverage
+.tox
+.cache
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
 
-# Development files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -50,26 +39,58 @@ media
 ehthumbs.db
 Thumbs.db
 
-# Documentation
+# Documentation and development files
 README.md
 *.md
+docs/
+.readthedocs.yml
 
-# Docker
+# Development and testing
+tests/
+test_*.py
+*_test.py
+pytest.ini
+tox.ini
+.coverage
+htmlcov/
+
+# Development dependencies (use requirements-prod.txt instead)
+requirements.txt
+requirements-dev.txt
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Database files (should be external)
+*.db
+*.sqlite3
+
+# Media and static files (handled by Django)
+media/
+staticfiles/
+static/
+
+# Docker files
 Dockerfile
+Dockerfile.*
+docker-compose*.yml
 .dockerignore
-docker-compose.yml
-docker-compose.*.yml
 
-# Git
-.git
-.gitignore
+# CI/CD and deployment
+.github/
+.gitlab-ci.yml
+.travis.yml
+deploy/
+k8s/
 
-# Node modules (if any)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Environment files (should be injected as env vars)
+.env
+.env.*
 
-# Temporary files
+# Backup and temporary files
+*.bak
 *.tmp
 *.temp

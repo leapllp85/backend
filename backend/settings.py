@@ -114,11 +114,11 @@ DATABASES = {
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://34.93.168.19:24798/0",
+        "LOCATION": "redis://35.200.219.72:6379/0",
     },
     "team_cache": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://34.93.168.19:24798/1",
+        "LOCATION": "redis://35.200.219.72:24798/1",
         "TIMEOUT": 300,  # 5 minutes
     }
 }
@@ -158,19 +158,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = '/app/staticfiles/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-from mongoengine import connect
-connect(
-    db='corporate_mvp',
-    username='leapllp101',
-    password='RandomPassword1999',
-    host='mongodb://ec2-13-127-167-9.ap-south-1.compute.amazonaws.com:27017'
-)
+# from mongoengine import connect
+# connect(
+#     db='corporate_mvp',
+#     username='leapllp101',
+#     password='RandomPassword1999',
+#     host='mongodb://ec2-13-127-167-9.ap-south-1.compute.amazonaws.com:27017'
+# )
 
 # Optionally, customize JWT settings:
 from datetime import timedelta

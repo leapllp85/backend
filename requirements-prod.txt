@@ -1,0 +1,32 @@
+# Production-optimized requirements - minimal dependencies
+# Core Django and API
+Django==5.2.3
+djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
+django-cors-headers==4.7.0
+gunicorn==21.2.0
+
+# Database
+psycopg2-binary==2.9.10
+pgvector>=0.2.4
+
+# AI/ML Core (production optimized)
+anthropic>=0.8.0
+langchain>=0.1.0
+langchain-anthropic>=0.1.0
+langgraph>=0.0.40
+
+# Caching and Background Tasks
+redis>=5.0.0
+
+# Essential utilities
+python-dotenv>=1.0.0
+requests==2.32.4
+pydantic==2.11.7
+
+# Minimal numpy for production (if needed by dependencies)
+numpy>=1.24.0,<2.0.0
+
+# Security and utilities
+certifi==2025.7.14
+urllib3==2.5.0
