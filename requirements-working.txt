@@ -1,0 +1,62 @@
+annotated-types==0.7.0
+# anthropic version consolidated below
+anyio==4.9.0
+asgiref==3.8.1
+certifi==2025.7.14
+charset-normalizer==3.4.2
+diskcache==5.6.3
+distro==1.9.0
+Django==5.2.3
+django-cors-headers==4.7.0
+djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
+dnspython==2.7.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.10
+Jinja2==3.1.6
+jiter==0.10.0
+# llama_cpp_python==0.3.9  # Removed - too heavy for production
+MarkupSafe==3.0.2
+# mongoengine==0.29.1
+# numpy version consolidated below
+psycopg2-binary==2.9.10
+pydantic==2.11.7
+pydantic_core==2.33.2
+PyJWT==2.9.0
+# pymongo==4.13.2
+requests==2.32.4
+setuptools==78.1.1
+sniffio==1.3.1
+sqlparse==0.5.3
+typing-inspection==0.4.1
+typing_extensions==4.14.0
+urllib3==2.5.0
+wheel==0.45.1
+
+# RAG and Vector Database (Python 3.13 compatible versions)
+pgvector>=0.2.4
+numpy>=1.24.0,<2.0.0
+# scikit-learn>=1.3.0  # Removed - too heavy for production
+# scipy>=1.11.0  # Removed - too heavy for production
+
+# Anthropic Claude (main dependency for RAG system)
+anthropic>=0.8.0
+
+# Redis for caching and background task management
+redis>=5.0.0
+
+# LangChain and LangGraph for orchestration
+langchain>=0.1.0
+# langchain-postgres>=0.0.6  # Removed - not available in production
+langchain-anthropic>=0.1.0
+# langchain-huggingface>=0.0.3  # Removed - not available in production
+langgraph>=0.0.40
+# sentence-transformers>=2.2.2  # Removed - too heavy for production
+# transformers>=4.30.0  # Removed - too heavy for production
+# huggingface-hub>=0.16.0  # Removed - too heavy for production
+# torch>=2.0.0  # Removed - not available on Alpine ARM64
+# tqdm>=4.65.0  # Removed - not needed
+python-dotenv>=1.0.0
+gunicorn==21.2.0

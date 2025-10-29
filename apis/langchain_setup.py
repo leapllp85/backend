@@ -3,11 +3,11 @@ LangChain setup for HR Conversational Analytics Chatbot
 Initializes LLM, embeddings, vector store, and chains for orchestration
 """
 import logging
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_anthropic import ChatAnthropic
-from langchain_postgres import PGVector
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.schema import Document
+# from langchain_postgres import PGVector  # Not available in production
+# from langchain_huggingface import HuggingFaceEmbeddings  # Not available in production
+from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from django.conf import settings
 
@@ -16,39 +16,39 @@ logger = logging.getLogger(__name__)
 # Environment variables with fallbacks
 DATABASE_URL = getattr(settings, 'DATABASE_URL', None)
 if not DATABASE_URL:
-    # Construct from Django settings
     db_config = settings.DATABASES['default']
     DATABASE_URL = f"postgresql://{db_config['USER']}:{db_config['PASSWORD']}@{db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
 
 ANTHROPIC_API_KEY = settings.ANTHROPIC_API_KEY
 
-# Initialize HuggingFace embeddings (free, no API key required)
-try:
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs={'device': 'cpu'},  # Use CPU for compatibility
-        encode_kwargs={'normalize_embeddings': True}
-    )
-    logger.info("HuggingFace embeddings initialized successfully")
-except Exception as e:
-    logger.warning(f"Failed to initialize HuggingFace embeddings: {e}")
-    embeddings = None
+# Initialize embeddings (disabled in production)
+embeddings = None
+# try:
+#     embeddings = HuggingFaceEmbeddings(
+#         model_name="sentence-transformers/all-MiniLM-L6-v2",
+#         model_kwargs={'device': 'cpu'},
+#         encode_kwargs={'normalize embeddings': True}
+#     )
+#     logger.info("HuggingFace embeddings initialized successfully")
+# except Exception as e:
+#     logger.warning(f"Failed to initialize HuggingFace embeddings: {e}")
+#     embeddings = None
 
-# Initialize vector store (with fallback to Django model)
+# Initialize vector store (disabled in production)
 vectorstore = None
-if embeddings and DATABASE_URL:
-    try:
-        vectorstore = PGVector(
-            embeddings=embeddings,
-            connection=DATABASE_URL,
-            collection_name="knowledge_base",
-        )
-        logger.info("PGVector initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize PGVector: {e}")
-        vectorstore = None
-else:
-    vectorstore = None
+# if embeddings and DATABASE_URL:
+#     try:
+#         vectorstore = PGVector(
+#             embeddings=embeddings,
+#             connection=DATABASE_URL,
+#             collection_name="knowledge_base",
+#         )
+#         logger.info("PGVector initialized successfully")
+#     except Exception as e:
+#         logger.error(f"Failed to initialize PGVector: {e}")
+#         vectorstore = None
+# else:
+#     vectorstore = None
 
 # Initialize Claude Sonnet LLM
 llm = None

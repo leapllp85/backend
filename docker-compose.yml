@@ -1,102 +1,30 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database with pgvector extension
-  db:
-    image: pgvector/pgvector:pg15
-    container_name: corporate_mvp_db
-    environment:
-      POSTGRES_DB: corporate_mvp
-      POSTGRES_USER: leapllp112
-      POSTGRES_PASSWORD: RandomPassword1999
-      POSTGRES_HOST_AUTH_METHOD: trust
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: always
+    env_file:
+      - .env
     ports:
-      - "5432:5432"
-    networks:
-      - corporate_mvp_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U leapllp112 -d corporate_mvp"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - 8000:8000
 
   # Redis Cache (optional, for production caching)
   redis:
     image: redis:7-alpine
     container_name: corporate_mvp_redis
     ports:
-      - "6379:6379"
+      - "24798:6379"
     networks:
       - corporate_mvp_network
+    command: ["redis-server", "--bind", "0.0.0.0", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
-
-  # Django Web Application
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: corporate_mvp_web
-    environment:
-      - DEBUG=1
-      - DATABASE_URL=postgresql://leapllp112:RandomPassword1999@db:5432/corporate_mvp
-      - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
-      - SECRET_KEY=your-secret-key-here-change-in-production
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-    volumes:
-      - .:/app
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - corporate_mvp_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-  # Nginx (for production)
-  nginx:
-    image: nginx:alpine
-    container_name: corporate_mvp_nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - static_volume:/app/staticfiles:ro
-      - media_volume:/app/media:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - web
-    networks:
-      - corporate_mvp_network
-    profiles:
-      - production
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-    driver: local
-  static_volume:
-    driver: local
-  media_volume:
-    driver: local
 
 networks:
   corporate_mvp_network:

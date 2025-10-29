@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from django.db.models import Count, Avg, Q, Max, Min, Sum
 from django.db import models
-from langchain.tools import tool
+from langchain_core.tools import tool
 from datetime import datetime, timedelta
 
 # Import your existing models

@@ -4,8 +4,8 @@ Routes queries between MCP (structured data), RAG (knowledge base), and Escalati
 """
 import logging
 from typing import TypedDict, Literal, Optional, Dict, Any
-from langchain.agents import initialize_agent, AgentType, Tool
-from langchain.prompts import PromptTemplate
+# from langchain.agents import initialize_agent, AgentType, Tool  # Deprecated in newer versions
+from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, END
 from .tools import AVAILABLE_TOOLS
 from .langchain_setup import (
@@ -430,16 +430,18 @@ def mcp_node(state: ChatState):
                 "query_type": "search"
             }
         else:
-            # Fallback to agent for complex queries
-            tools = [
-                Tool(name=tool.name, func=tool.func, description=tool.description)
-                for tool in AVAILABLE_TOOLS
-            ]
-            agent = initialize_agent(tools, llm, agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION)
-            answer = agent.run(state["user_input"])
+            # Fallback to simple LLM response for complex queries
+            # Note: Agent functionality deprecated, using direct LLM call instead
+            if llm:
+                answer = llm.invoke(state["user_input"])
+                if hasattr(answer, 'content'):
+                    answer = answer.content
+            else:
+                answer = "I'm sorry, I cannot process complex queries at the moment."
+            
             state["answer"] = answer
             state["tool_data"] = {
-                "tool": "agent",
+                "tool": "llm_fallback",
                 "result": answer,
                 "query_type": "general"
             }

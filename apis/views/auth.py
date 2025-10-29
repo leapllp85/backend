@@ -4,64 +4,65 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+# from rest_framework_simplejwt.tokens import RefreshToken  # Disabled for production
+# from rest_framework_simplejwt.views import TokenObtainPairView  # Disabled for production
+# from rest_framework_simplejwt.serializers import TokenObtainPairSerializer  # Disabled for production
 from ..models import EmployeeProfile
 from ..serializers import EmployeeProfileSerializer
 from ..permissions import IsManagerOrAssociate
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Custom JWT token serializer that includes user role and profile info"""
-    
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        
-        # Add custom claims
-        try:
-            profile = user.employee_profile
-            token['role'] = profile.role
-            token['is_manager'] = profile.is_manager
-            token['user_id'] = user.id
-            token['username'] = user.username
-            token['first_name'] = user.first_name
-            token['last_name'] = user.last_name
-        except EmployeeProfile.DoesNotExist:
-            token['role'] = 'associate'
-            token['is_manager'] = False
-            token['user_id'] = user.id
-            token['username'] = user.username
-            token['first_name'] = user.first_name
-            token['last_name'] = user.last_name
-        
-        return token
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        
-        # Add user profile information to response
-        user = self.user
-        try:
-            profile = user.employee_profile
-            data.update({
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'email': user.email,
-                    'role': profile.role,
-                    'is_manager': profile.is_manager,
-                    'profile_pic': profile.profile_pic,
-                    'manager_id': profile.manager.id if profile.manager else None,
-                    'manager_name': f"{profile.manager.first_name} {profile.manager.last_name}" if profile.manager else None
-                }
-            })
-        except EmployeeProfile.DoesNotExist:
-            data.update({
-                'user': {
+# JWT-related classes disabled for production
+# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+#     """Custom JWT token serializer that includes user role and profile info"""
+#     
+#     @classmethod
+#     def get_token(cls, user):
+#         token = super().get_token(user)
+#         
+#         # Add custom claims
+#         try:
+#             profile = user.employee_profile
+#             token['role'] = profile.role
+#             token['is_manager'] = profile.is_manager
+#             token['user_id'] = user.id
+#             token['username'] = user.username
+#             token['first_name'] = user.first_name
+#             token['last_name'] = user.last_name
+#         except EmployeeProfile.DoesNotExist:
+#             token['role'] = 'associate'
+#             token['is_manager'] = False
+#             token['user_id'] = user.id
+#             token['username'] = user.username
+#             token['first_name'] = user.first_name
+#             token['last_name'] = user.last_name
+#         
+#         return token
+# 
+#     def validate(self, attrs):
+#         data = super().validate(attrs)
+#         
+#         # Add user profile information to response
+#         user = self.user
+#         try:
+#             profile = user.employee_profile
+#             data.update({
+#                 'user': {
+#                     'id': user.id,
+#                     'username': user.username,
+#                     'first_name': user.first_name,
+#                     'last_name': user.last_name,
+#                     'email': user.email,
+#                     'role': profile.role,
+#                     'is_manager': profile.is_manager,
+#                     'profile_pic': profile.profile_pic,
+#                     'manager_id': profile.manager.id if profile.manager else None,
+#                     'manager_name': f"{profile.manager.first_name} {profile.manager.last_name}" if profile.manager else None
+#                 }
+#             })
+#         except EmployeeProfile.DoesNotExist:
+#             data.update({
+#                 'user': {
                     'id': user.id,
                     'username': user.username,
                     'first_name': user.first_name,

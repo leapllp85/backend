@@ -1,5 +1,5 @@
 # Multi-stage build for production - optimized for size
-FROM python:3.11-alpine as builder
+FROM python:3.11-slim as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -8,36 +8,32 @@ ENV PIP_NO_CACHE_DIR=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install build dependencies in single layer
-RUN apk add --no-cache --virtual .build-deps \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc \
         g++ \
-        musl-dev \
-        postgresql-dev \
-        linux-headers \
+        libc6-dev \
+        libpq-dev \
+        linux-libc-dev \
         cmake \
         make \
-        pkgconfig \
+        pkg-config \
         libffi-dev \
-        openssl-dev \
-        cargo \
-        rust
+        libssl-dev \
+        curl \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies with optimizations
-COPY requirements-prod.txt /tmp/
+COPY requirements-working.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --compile -r /tmp/requirements-prod.txt \
+    && pip install --no-cache-dir --compile -r /tmp/requirements-working.txt \
     && find /usr/local -type d -name __pycache__ -exec rm -rf {} + \
     && find /usr/local -type f -name "*.pyc" -delete \
     && find /usr/local -type f -name "*.pyo" -delete \
-    && find /usr/local -name "*.dist-info" -exec rm -rf {} + \
-    && find /usr/local -name "tests" -type d -exec rm -rf {} + \
-    && find /usr/local -name "test" -type d -exec rm -rf {} +
+    && find /usr/local -name "*.dist-info" -exec rm -rf {} +
 
-# Remove build dependencies
-RUN apk del .build-deps
-
-# Production stage - ultra-lightweight
-FROM python:3.11-alpine
+# Production stage - lightweight Slim
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -47,11 +43,12 @@ ENV DEBUG=0
 ENV PIP_NO_CACHE_DIR=1
 
 # Install only essential runtime dependencies
-RUN apk add --no-cache \
-        postgresql-libs \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 \
         ca-certificates \
-    && addgroup -g 1000 django \
-    && adduser -D -u 1000 -G django django
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 django \
+    && useradd -r -u 1000 -g django django
 
 # Set work directory
 WORKDIR /app
@@ -61,7 +58,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy only essential files (optimized for production)
-COPY --chown=django:django requirements-prod.txt manage.py ./
+COPY --chown=django:django requirements-working.txt manage.py ./
 COPY --chown=django:django backend/ ./backend/
 COPY --chown=django:django apis/ ./apis/
 COPY --chown=django:django authapi/ ./authapi/
@@ -91,7 +88,6 @@ CMD ["gunicorn", \
      "--workers", "2", \
      "--worker-class", "sync", \
      "--timeout", "120", \
-     "--keepalive", "5", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \
      "--preload", \
