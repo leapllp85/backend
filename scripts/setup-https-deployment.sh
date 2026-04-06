@@ -36,8 +36,8 @@ chmod 755 /var/log/nginx
 
 # Copy nginx HTTPS configuration
 echo "Configuring Nginx for HTTPS..."
-if [ -f "/app/nginx-https.conf" ]; then
-    cp /app/nginx-https.conf /etc/nginx/nginx.conf
+if [ -f "nginx-https.conf" ]; then
+    cp nginx-https.conf /etc/nginx/nginx.conf
     echo "✓ Nginx HTTPS configuration installed"
 else
     echo "✗ nginx-https.conf not found in /app"
