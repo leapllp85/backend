@@ -26,8 +26,8 @@ mkdir -p /etc/nginx/ssl
 mkdir -p /var/log/supervisor
 mkdir -p /var/log/nginx
 mkdir -p /var/www/certbot
-mkdir -p /app/staticfiles
-mkdir -p /app/media
+mkdir -p staticfiles
+mkdir -p media
 
 # Set permissions
 chmod 755 /etc/nginx/ssl
@@ -46,8 +46,8 @@ fi
 
 # Make SSL certificate generation script executable
 echo "Setting up SSL certificate generation..."
-if [ -f "/app/scripts/generate-ssl-certs.sh" ]; then
-    chmod +x /app/scripts/generate-ssl-certs.sh
+if [ -f "scripts/generate-ssl-certs.sh" ]; then
+    chmod +x scripts/generate-ssl-certs.sh
     echo "✓ SSL certificate script is executable"
 else
     echo "✗ generate-ssl-certs.sh not found"
@@ -56,7 +56,7 @@ fi
 
 # Generate SSL certificates
 echo "Generating SSL certificates..."
-/app/scripts/generate-ssl-certs.sh
+scripts/generate-ssl-certs.sh
 
 # Test Nginx configuration
 echo "Testing Nginx configuration..."
@@ -70,8 +70,8 @@ fi
 
 # Copy Supervisor configuration
 echo "Configuring Supervisor..."
-if [ -f "/app/supervisord.conf" ]; then
-    cp /app/supervisord.conf /etc/supervisor/conf.d/app.conf
+if [ -f "supervisord.conf" ]; then
+    cp supervisord.conf /etc/supervisor/conf.d/app.conf
     echo "✓ Supervisor configuration installed"
 else
     echo "✗ supervisord.conf not found in /app"
@@ -87,8 +87,8 @@ fi
 
 # # Set ownership
 # echo "Setting file ownership..."
-# chown -R django:django /app/staticfiles
-# chown -R django:django /app/media
+# chown -R django:django staticfiles
+# chown -R django:django media
 # chown -R django:django /var/log/supervisor
 
 # Reload Supervisor
